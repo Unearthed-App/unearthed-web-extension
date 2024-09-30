@@ -169,7 +169,7 @@ const bookUploadProcess = async (booksPassedIn) => {
   let errorOccured = false;
 
   try {
-    const response = await fetch(`${domain}/api/books-pending-insert`, {
+    const response = await fetch(`${domain}/api/books-insert`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -249,23 +249,6 @@ const bookUploadProcess = async (booksPassedIn) => {
   if (!errorOccured) {
   }
 
-  try {
-    const response = await fetch(`${domain}/api/sync-books`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Error inserting quote at index ${i}`);
-    }
-
-    const data = await response.json();
-  } catch (error) {
-    errorOccured = true;
-    console.error(`Failed to insert quote at index ${i}:`, error);
-  }
 
   fetchInProgress = false;
 
