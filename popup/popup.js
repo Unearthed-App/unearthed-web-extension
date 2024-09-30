@@ -31,18 +31,14 @@ document.addEventListener("DOMContentLoaded", function () {
     getBooksButton.innerText = "Getting books...";
     chrome.tabs.create({ url: `${domain}/dashboard/home` }, function (tab) {
       chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
-        console.log("111");
         if (tabId === tab.id && changeInfo.status === "complete") {
-          console.log("222");
           setTimeout(() => {
             if (isLoggedIn) {
-              console.log("333");
               chrome.runtime.sendMessage({
                 action: "GET_BOOKS",
               });
             } else {
-              console.log("444");
-              window.close();
+              // window.close();
             }
           }, 1000);
           chrome.tabs.onUpdated.removeListener(listener);
@@ -57,7 +53,7 @@ document.addEventListener("DOMContentLoaded", function () {
     chrome.tabs.create({ url: `${domain}/dashboard/home` }, function (tab) {
       chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
         if (tabId === tab.id && changeInfo.status === "complete") {
-          window.close();
+          // window.close();
           chrome.tabs.onUpdated.removeListener(listener);
         }
       });
@@ -70,7 +66,7 @@ document.addEventListener("DOMContentLoaded", function () {
       function (tab) {
         chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
           if (tabId === tab.id && changeInfo.status === "complete") {
-            window.close();
+            // window.close();
             chrome.tabs.onUpdated.removeListener(listener);
           }
         });
@@ -192,7 +188,7 @@ document.addEventListener("DOMContentLoaded", function () {
             }
           );
         } else {
-          window.close();
+          // window.close();
         }
       }, 1000);
     }
