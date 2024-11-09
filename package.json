@@ -1,0 +1,15 @@
+{
+  "name": "unearthed-extension",
+  "version": "1.0.6",
+  "description": "Brwoser extension for the Unearthed App",
+  "scripts": {
+    "build:tailwind": "tailwindcss -i ./src/tailwind.css -o ./popup/popup.css --minify",
+    "build:firefox": "npm run build:tailwind && zip -r -FS ../unearthed-extension-firefox.zip * --exclude '*.git*' '*.vscode*' 'package.json' 'node_modules/*' 'src/*'",
+    "watch:tailwind": "tailwindcss -i ./src/tailwind.css -o ./popup/popup.css --watch"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "tailwindcss": "^3.3.3"
+  }
+}
