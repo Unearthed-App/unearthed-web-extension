@@ -1,20 +1,19 @@
 /**
  * Copyright (C) 2024 Unearthed App
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-
 
 const domain = "https://unearthed.app";
 
@@ -66,8 +65,9 @@ chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo, tab) {
     }
   }
 });
+async function fetchData(retries = 0, maxRetries = 3) {
+  const urlToFetch = `https://read.amazon.com/notebook`;
 
-async function fetchData() {
   try {
     const response = await fetch(
       "https://read.amazon.com/kindle-library/search?libraryType=BOOKS&sortType=recency&resourceType=EBOOK&querySize=50",
@@ -96,14 +96,25 @@ async function fetchData() {
 
       }
     } else {
-      console.log("Error fetching data 1:", response.statusText);
-      sendGetBooksFailed();
+      console.error("Error fetching data 1:", response.statusText);
+      if (retries < maxRetries) {
+        console.log(`Retrying... Attempt ${retries + 1}/${maxRetries}`);
+        await fetchData(retries + 1, maxRetries);
+      } else {
+        console.log("Max retries reached. Aborting.");
+        sendGetBooksFailed();
+      }
     }
   } catch (error) {
-    sendGetBooksFailed();
+    console.error("Error fetching data 2:", error);
 
-    console.log("Error fetching data 2:", error);
-    console.error(error);
+    if (retries < maxRetries) {
+      console.log(`Retrying... Attempt ${retries + 1}/${maxRetries}`);
+      await fetchData(retries + 1, maxRetries);
+    } else {
+      console.log("Max retries reached. Aborting.");
+      sendGetBooksFailed();
+    }
   }
 }
 
@@ -133,7 +144,6 @@ async function checkLoginStatus() {
     isPremium: data.isPremium || false,
   });
 }
-
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log("onMessage", request.action);
