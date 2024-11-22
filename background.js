@@ -234,15 +234,17 @@ const bookUploadProcess = async (booksPassedIn) => {
     console.error(error);
   }
 
-  const quotesToInsertArray = updatedBooks.map((book) =>
-    book.annotations.map((annotation) => ({
-      sourceId: book.id,
-      content: annotation.quote,
-      note: annotation.note,
-      color: annotation.color,
-      location: annotation.location,
-    }))
-  );
+  const quotesToInsertArray = updatedBooks
+    .map((book) =>
+      book?.annotations?.map((annotation) => ({
+        sourceId: book.id,
+        content: annotation.quote,
+        note: annotation.note,
+        color: annotation.color,
+        location: annotation.location,
+      }))
+    )
+    .filter((x) => x !== undefined);
 
   const failedIndexes = [];
 

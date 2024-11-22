@@ -373,16 +373,23 @@ const parseBooksHtml = (html) => {
 };
 
 const parseBooks = (itemsList) => {
-
+  if (!Array.isArray(itemsList)) {
+    console.error("Invalid itemsList:", itemsList);
+    return;
+  }
   let booksFound = [];
   itemsList.forEach((book, index) => {
     const bookTitle = book.title?.trim() || "Untitled";
-    const bookAuthor = book.authors[0] ? formatAuthorName(book.authors[0]) : "Unknown";
+    const bookAuthor =
+      book.authors && book.authors[0]
+        ? formatAuthorName(book.authors[0])
+        : "Unknown";
+    const titleParts = bookTitle.split(": ");
 
     booksFound.push({
       htmlId: book.asin,
-      title: bookTitle.split(": ")[0],
-      subtitle: bookTitle.split(": ")[1],
+      title: titleParts[0],
+      subtitle: titleParts[1] || "",
       author: bookAuthor,
       imageUrl: book.productUrl,
       asin: book.asin,
@@ -390,8 +397,8 @@ const parseBooks = (itemsList) => {
 
     allBooks.push({
       htmlId: book.asin,
-      title: bookTitle.split(": ")[0],
-      subtitle: bookTitle.split(": ")[1],
+      title: titleParts[0],
+      subtitle: titleParts[1] || "",
       author: bookAuthor,
       imageUrl: book.productUrl,
       asin: book.asin,
@@ -407,11 +414,15 @@ const parseBooks = (itemsList) => {
   }
 };
 
-
 function formatAuthorName(author) {
-  if (author.endsWith(':')) {
+  if (author.endsWith(":")) {
     author = author.slice(0, -1);
   }
-  const [lastName, firstName] = author.split(',').map(part => part.trim());
-  return `${firstName} ${lastName}`;
+  const parts = author.split(",").map((part) => part.trim());
+  if (parts.length === 2) {
+    const [lastName, firstName] = parts;
+    return `${firstName} ${lastName}`;
+  } else {
+    return author; // Return original name if format is unexpected
+  }
 }
