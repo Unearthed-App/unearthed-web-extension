@@ -69,7 +69,7 @@ chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo, tab) {
 
 async function fetchData() {
   try {
-    const response = await await fetch(
+    const response = await fetch(
       "https://read.amazon.com/kindle-library/search?libraryType=BOOKS&sortType=recency&resourceType=EBOOK&querySize=50",
       {
         credentials: "include",
