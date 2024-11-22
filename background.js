@@ -74,12 +74,8 @@ async function fetchData() {
       {
         credentials: "include",
         headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:132.0) Gecko/20100101 Firefox/132.0",
           Accept: "*/*",
-          "Accept-Language": "en-US,en;q=0.5",
           "validation-token": "undefined",
-          "Sec-GPC": "1",
           "Sec-Fetch-Dest": "empty",
           "Sec-Fetch-Mode": "cors",
           "Sec-Fetch-Site": "same-origin",
@@ -279,24 +275,14 @@ const getEachBook = async (booksFound) => {
     const response = await fetch(urlToFetch, {
       headers: {
         accept: "*/*",
-        "accept-language": "en-US,en;q=0.9",
-        "device-memory": "8",
         downlink: "10",
         dpr: "2",
         ect: "4g",
         priority: "u=1, i",
         rtt: "50",
-        "sec-ch-device-memory": "8",
-        "sec-ch-dpr": "2",
-        "sec-ch-ua":
-          '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Linux"',
-        "sec-ch-viewport-width": "635",
         "sec-fetch-dest": "empty",
         "sec-fetch-mode": "cors",
         "sec-fetch-site": "same-origin",
-        "viewport-width": "635",
         "x-requested-with": "XMLHttpRequest",
       },
       referrerPolicy: "strict-origin-when-cross-origin",
