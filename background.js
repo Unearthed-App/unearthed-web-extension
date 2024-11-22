@@ -69,42 +69,36 @@ chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo, tab) {
 
 async function fetchData() {
   try {
-    const urlToFetch = `https://read.amazon.com/notebook`;
-    console.log("urlToFetch:", urlToFetch);
-
-    const response = await fetch(urlToFetch, {
-      headers: {
-        accept: "*/*",
-        "accept-language": "en-US,en;q=0.9",
-        "device-memory": "8",
-        downlink: "10",
-        dpr: "2",
-        ect: "4g",
-        priority: "u=1, i",
-        rtt: "50",
-        "sec-ch-device-memory": "8",
-        "sec-ch-dpr": "2",
-        "sec-ch-ua":
-          '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Linux"',
-        "sec-ch-viewport-width": "635",
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-origin",
-        "viewport-width": "635",
-        "x-requested-with": "XMLHttpRequest",
-      },
-      referrerPolicy: "strict-origin-when-cross-origin",
-      body: null,
-      method: "GET",
-      mode: "cors",
-      credentials: "include",
-    });
+    const response = await await fetch(
+      "https://read.amazon.com/kindle-library/search?libraryType=BOOKS&sortType=recency&resourceType=EBOOK&querySize=50",
+      {
+        credentials: "include",
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:132.0) Gecko/20100101 Firefox/132.0",
+          Accept: "*/*",
+          "Accept-Language": "en-US,en;q=0.5",
+          "validation-token": "undefined",
+          "Sec-GPC": "1",
+          "Sec-Fetch-Dest": "empty",
+          "Sec-Fetch-Mode": "cors",
+          "Sec-Fetch-Site": "same-origin",
+          Priority: "u=4",
+        },
+        referrer: "https://read.amazon.com/kindle-library",
+        method: "GET",
+        mode: "cors",
+      }
+    );
 
     if (response.ok) {
-      const html = await response.text();
-      chrome.runtime.sendMessage({ action: "PARSE_HTML", html });
+      const res = await response.json();
+      const itemsList = res.itemsList;
+
+      if (itemsList) {
+        chrome.runtime.sendMessage({ action: "PARSE_RESPONSE", itemsList });
+
+      }
     } else {
       console.log("Error fetching data 1:", response.statusText);
       sendGetBooksFailed();
@@ -186,6 +180,7 @@ const bookUploadProcess = async (booksPassedIn) => {
     subtitle: book.subtitle,
     author: book.author,
     imageUrl: book.imageUrl,
+    asin: book.asin,
   }));
   let errorOccured = false;
 

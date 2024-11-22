@@ -1,20 +1,19 @@
 /**
  * Copyright (C) 2024 Unearthed App
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-
 
 const domain = "https://unearthed.app";
 
@@ -275,8 +274,12 @@ document.addEventListener("DOMContentLoaded", function () {
       console.log("getting books failed");
     } else if (request.action === "PARSE_HTML") {
       console.log("...");
-      parseBooks(request.html);
+      parseBooksHtml(request.html);
       sendResponse({ success: true, message: "HTML processed successfully" });
+    } else if (request.action === "PARSE_RESPONSE") {
+      console.log("...");
+      parseBooks(request.itemsList);
+      sendResponse({ success: true, message: "JSON processed successfully" });
     } else if (request.action === "ADD_QUOTES_TO_BOOK") {
       parseQuotes(request.book.htmlId, request.html, request.lastBook);
       sendResponse({ success: true, message: "HTML processed successfully" });
@@ -324,7 +327,7 @@ const parseQuotes = async (bookHtmlId, quotesHtml, lastBook) => {
   }
 };
 
-const parseBooks = (html) => {
+const parseBooksHtml = (html) => {
   const parser = new DOMParser();
   const document = parser.parseFromString(html, "text/html");
 
@@ -368,3 +371,47 @@ const parseBooks = (html) => {
     });
   }
 };
+
+const parseBooks = (itemsList) => {
+
+  let booksFound = [];
+  itemsList.forEach((book, index) => {
+    const bookTitle = book.title?.trim() || "Untitled";
+    const bookAuthor = book.authors[0] ? formatAuthorName(book.authors[0]) : "Unknown";
+
+    booksFound.push({
+      htmlId: book.asin,
+      title: bookTitle.split(": ")[0],
+      subtitle: bookTitle.split(": ")[1],
+      author: bookAuthor,
+      imageUrl: book.productUrl,
+      asin: book.asin,
+    });
+
+    allBooks.push({
+      htmlId: book.asin,
+      title: bookTitle.split(": ")[0],
+      subtitle: bookTitle.split(": ")[1],
+      author: bookAuthor,
+      imageUrl: book.productUrl,
+      asin: book.asin,
+    });
+  });
+
+  if (booksFound.length > 0) {
+    getBooksInformation.innerText = `Syncing ${booksFound.length} books...`;
+    chrome.runtime.sendMessage({
+      action: "GET_EACH_BOOK",
+      booksFound: booksFound,
+    });
+  }
+};
+
+
+function formatAuthorName(author) {
+  if (author.endsWith(':')) {
+    author = author.slice(0, -1);
+  }
+  const [lastName, firstName] = author.split(',').map(part => part.trim());
+  return `${firstName} ${lastName}`;
+}
