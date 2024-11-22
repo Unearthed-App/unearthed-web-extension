@@ -1,6 +1,6 @@
 {
   "name": "unearthed-extension",
-  "version": "1.0.7",
+  "version": "1.1.0",
   "description": "Brwoser extension for the Unearthed App",
   "scripts": {
     "build:tailwind": "tailwindcss -i ./src/tailwind.css -o ./popup/popup.css --minify",
