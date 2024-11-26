@@ -65,41 +65,63 @@ chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo, tab) {
     }
   }
 });
-async function fetchData(retries = 0, maxRetries = 3) {
-  const urlToFetch = `https://read.amazon.com/notebook`;
+
+async function fetchData(
+  retries = 0,
+  maxRetries = 3,
+  paginationToken = null,
+  accumulatedItems = []
+) {
+  let urlToFetch =
+    "https://read.amazon.com/kindle-library/search?libraryType=BOOKS&sortType=recency&querySize=50";
+  if (paginationToken) {
+    urlToFetch += `&paginationToken=${paginationToken}`;
+  }
 
   try {
-    const response = await fetch(
-      "https://read.amazon.com/kindle-library/search?libraryType=BOOKS&sortType=recency&resourceType=EBOOK&querySize=50",
-      {
-        credentials: "include",
-        headers: {
-          Accept: "*/*",
-          "validation-token": "undefined",
-          "Sec-Fetch-Dest": "empty",
-          "Sec-Fetch-Mode": "cors",
-          "Sec-Fetch-Site": "same-origin",
-          Priority: "u=4",
-        },
-        referrer: "https://read.amazon.com/kindle-library",
-        method: "GET",
-        mode: "cors",
-      }
-    );
+    const response = await fetch(urlToFetch, {
+      credentials: "include",
+      headers: {
+        Accept: "*/*",
+        "validation-token": "undefined",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
+        Priority: "u=4",
+      },
+      referrer: "https://read.amazon.com/kindle-library",
+      method: "GET",
+      mode: "cors",
+    });
 
     if (response.ok) {
       const res = await response.json();
-      const itemsList = res.itemsList;
+      const itemsList = res.itemsList || [];
+      accumulatedItems.push(...itemsList);
 
-      if (itemsList) {
-        chrome.runtime.sendMessage({ action: "PARSE_RESPONSE", itemsList });
-
+      if (res.paginationToken) {
+        return await fetchData(
+          0,
+          maxRetries,
+          res.paginationToken,
+          accumulatedItems
+        );
       }
+
+      chrome.runtime.sendMessage({
+        action: "PARSE_RESPONSE",
+        itemsList: accumulatedItems,
+      });
     } else {
       console.error("Error fetching data 1:", response.statusText);
       if (retries < maxRetries) {
         console.log(`Retrying... Attempt ${retries + 1}/${maxRetries}`);
-        await fetchData(retries + 1, maxRetries);
+        return await fetchData(
+          retries + 1,
+          maxRetries,
+          paginationToken,
+          accumulatedItems
+        );
       } else {
         console.log("Max retries reached. Aborting.");
         sendGetBooksFailed();
@@ -107,10 +129,14 @@ async function fetchData(retries = 0, maxRetries = 3) {
     }
   } catch (error) {
     console.error("Error fetching data 2:", error);
-
     if (retries < maxRetries) {
       console.log(`Retrying... Attempt ${retries + 1}/${maxRetries}`);
-      await fetchData(retries + 1, maxRetries);
+      return await fetchData(
+        retries + 1,
+        maxRetries,
+        paginationToken,
+        accumulatedItems
+      );
     } else {
       console.log("Max retries reached. Aborting.");
       sendGetBooksFailed();
@@ -279,47 +305,66 @@ const bookUploadProcess = async (booksPassedIn) => {
     action: "GETTING_BOOKS_DONE",
   });
 };
-
-const getEachBook = async (booksFound) => {
+const getEachBook = async (booksFound, maxRetries = 3) => {
   for (const book of booksFound) {
-    const urlToFetch = `https://read.amazon.com/notebook?asin=${book.htmlId}&contentLimitState=&`;
-    console.log("urlToFetch", urlToFetch);
-    const response = await fetch(urlToFetch, {
-      headers: {
-        accept: "*/*",
-        downlink: "10",
-        dpr: "2",
-        ect: "4g",
-        priority: "u=1, i",
-        rtt: "50",
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-origin",
-        "x-requested-with": "XMLHttpRequest",
-      },
-      referrerPolicy: "strict-origin-when-cross-origin",
-      body: null,
-      method: "GET",
-      mode: "cors",
-      credentials: "include",
-    });
+    let retries = 0;
+    let success = false;
 
-    const html = await response.text();
+    while (retries < maxRetries && !success) {
+      try {
+        const urlToFetch = `https://read.amazon.com/notebook?asin=${book.htmlId}&contentLimitState=&`;
+        console.log("urlToFetch", urlToFetch);
 
-    let lastBook = false;
-    if (booksFound.indexOf(book) === booksFound.length - 1) {
-      lastBook = true;
+        const response = await fetch(urlToFetch, {
+          headers: {
+            accept: "*/*",
+            downlink: "10",
+            dpr: "2",
+            ect: "4g",
+            priority: "u=1, i",
+            rtt: "50",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-origin",
+            "x-requested-with": "XMLHttpRequest",
+          },
+          referrerPolicy: "strict-origin-when-cross-origin",
+          body: null,
+          method: "GET",
+          mode: "cors",
+          credentials: "include",
+        });
+
+        if (response.ok) {
+          const html = await response.text();
+          const lastBook = booksFound.indexOf(book) === booksFound.length - 1;
+
+          chrome.runtime.sendMessage({
+            action: "ADD_QUOTES_TO_BOOK",
+            book: book,
+            html: html,
+            lastBook: lastBook,
+          });
+
+          success = true;
+        } else {
+          console.error(
+            `Error fetching book ${book.htmlId}: ${response.statusText}`
+          );
+          throw new Error(response.statusText);
+        }
+      } catch (error) {
+        retries++;
+        console.error(
+          `Retrying for book ${book.htmlId}... (${retries}/${maxRetries})`
+        );
+
+        if (retries === maxRetries) {
+          console.error(
+            `Failed to fetch book ${book.htmlId} after ${maxRetries} attempts.`
+          );
+        }
+      }
     }
-
-    const toReturn = {
-      book: book,
-      html: html,
-      lastBook: lastBook,
-    };
-
-    chrome.runtime.sendMessage({
-      action: "ADD_QUOTES_TO_BOOK",
-      ...toReturn,
-    });
   }
 };
