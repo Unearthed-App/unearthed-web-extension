@@ -297,7 +297,7 @@ document.addEventListener("DOMContentLoaded", function () {
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log("chrome.runtime.onMessage");
     if (request.action === "GETTING_BOOKS_DONE") {
-      getBooksInformation.innerText = "Sync Complete! You can now view your books on unearthed.app";
+      getBooksInformation.innerText = "Complete, you will be able to view your books on unearthed.app soon.";
       downloadCsv.style.display = "block";
 
       // chrome.tabs.create(
@@ -401,7 +401,7 @@ const parseBooks = (itemsList) => {
   if (booksFound.length > 0) {
     getBooksInformation.innerText = `Found ${booksFound.length} books...`;
     const booksListElement = document.createElement("ul");
-    booksListElement.classList.add("list-disc", "ml-6");
+    booksListElement.classList.add("list-none");
     booksFound.forEach((book) => {
       const bookElement = document.createElement("li");
       const checkbox = document.createElement("input");
