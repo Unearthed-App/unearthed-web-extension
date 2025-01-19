@@ -23,8 +23,8 @@ let user = {};
 let books = [];
 let currentUrl = "";
 let dailyReflection = {};
-
 let allBooks = [];
+let booksForCsv = [];
 
 document.addEventListener("DOMContentLoaded", function () {
   const loadingDailyReflection = document.getElementById(
@@ -54,6 +54,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const getBooksDiv = document.getElementById("getBooksDiv");
   const getNewQuoteButton = document.getElementById("getNewQuoteButton");
   const continueGetBooks = document.getElementById("continueGetBooks");
+  const downloadCsv = document.getElementById("downloadCsv");
 
   getBooksButton.addEventListener("click", () => {
     dailyReflectionDiv.style.display = "none";
@@ -93,6 +94,16 @@ document.addEventListener("DOMContentLoaded", function () {
     } else {
       getBooksInformation.innerText = "No books synced";
     }
+  });
+
+  downloadCsv.addEventListener("click", () => {
+    const csv = convertBooksToCSV(booksForCsv);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "books.csv";
+    link.click();
   });
 
   getNewQuoteButton.addEventListener("click", function () {
@@ -286,16 +297,17 @@ document.addEventListener("DOMContentLoaded", function () {
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log("chrome.runtime.onMessage");
     if (request.action === "GETTING_BOOKS_DONE") {
-      getBooksInformation.innerText = "Sync Complete!";
+      getBooksInformation.innerText = "Sync Complete! You can now view your books on unearthed.app";
+      downloadCsv.style.display = "block";
 
-      chrome.tabs.create(
-        {
-          url: isPremium
-            ? `${domain}/premium/books`
-            : `${domain}/dashboard/books`,
-        },
-        function (tab) {}
-      );
+      // chrome.tabs.create(
+      //   {
+      //     url: isPremium
+      //       ? `${domain}/premium/books`
+      //       : `${domain}/dashboard/books`,
+      //   },
+      //   function (tab) {}
+      // );
     } else if (request.action === "GETTING_BOOKS_FAILED") {
       getBooksDiv.style.display = "none";
       loginToKindleDiv.style.display = "block";
@@ -342,6 +354,8 @@ const parseQuotes = async (bookHtmlId, quotesHtml, lastBook) => {
   getBooksInformation.innerText += `\n${matchingBook.title} has ${
     annotations.length
   } quote${annotations.length == 1 ? "" : "s"}...`;
+
+  booksForCsv.push(matchingBook);
 
   if (lastBook) {
     chrome.runtime.sendMessage({
@@ -416,4 +430,55 @@ function formatAuthorName(author) {
   } else {
     return author; // Return original name if format is unexpected
   }
+}
+function convertBooksToCSV(books) {
+  let csv = [
+    [
+      "title",
+      "subtitle",
+      "author",
+      "imageUrl",
+      "asin",
+      "content",
+      "note",
+      "color",
+      "location",
+    ],
+  ];
+
+  books.forEach((book) => {
+    if (book.annotations.length > 0) {
+      book.annotations.forEach((annotation) => {
+        csv.push([
+          book.title,
+          book.subtitle,
+          book.author,
+          book.imageUrl,
+          book.asin,
+          annotation.quote,
+          annotation.note,
+          annotation.color,
+          annotation.location,
+        ]);
+      });
+    } else {
+      // csv.push([
+      //   book.title,
+      //   book.subtitle,
+      //   book.author,
+      //   book.imageUrl,
+      //   book.asin,
+      //   "",
+      //   "",
+      //   "",
+      //   "",
+      // ]);
+    }
+  });
+
+  return csv
+    .map((row) =>
+      row.map((cell) => `"${String(cell || "").replace(/"/g, '""')}"`).join(",")
+    )
+    .join("\n");
 }
