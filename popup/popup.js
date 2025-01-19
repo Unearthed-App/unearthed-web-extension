@@ -24,7 +24,7 @@ let books = [];
 let currentUrl = "";
 let dailyReflection = {};
 
-const allBooks = [];
+let allBooks = [];
 
 document.addEventListener("DOMContentLoaded", function () {
   const loadingDailyReflection = document.getElementById(
@@ -53,6 +53,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const getBooksInformation = document.getElementById("getBooksInformation");
   const getBooksDiv = document.getElementById("getBooksDiv");
   const getNewQuoteButton = document.getElementById("getNewQuoteButton");
+  const continueGetBooks = document.getElementById("continueGetBooks");
 
   getBooksButton.addEventListener("click", () => {
     dailyReflectionDiv.style.display = "none";
@@ -64,6 +65,33 @@ document.addEventListener("DOMContentLoaded", function () {
       chrome.runtime.sendMessage({
         action: "GET_BOOKS",
       });
+    }
+  });
+
+  continueGetBooks.addEventListener("click", () => {
+    const ignoredBookTitles = Array.from(
+      document.querySelectorAll(
+        "#getBooksInformation input[type='checkbox']:checked"
+      )
+    ).map((checkbox) => checkbox.name);
+
+    const booksToGet = allBooks.filter((book) => {
+      return ignoredBookTitles.includes(book.title);
+    });
+
+    allBooks = allBooks.filter((book) => {
+      return ignoredBookTitles.includes(book.title);
+    });
+
+    continueGetBooks.style.display = "none";
+    if (booksToGet.length > 0) {
+      getBooksInformation.innerText = "Continuing...";
+      chrome.runtime.sendMessage({
+        action: "GET_EACH_BOOK",
+        booksFound: booksToGet,
+      });
+    } else {
+      getBooksInformation.innerText = "No books synced";
     }
   });
 
@@ -272,10 +300,6 @@ document.addEventListener("DOMContentLoaded", function () {
       getBooksDiv.style.display = "none";
       loginToKindleDiv.style.display = "block";
       console.log("getting books failed");
-    } else if (request.action === "PARSE_HTML") {
-      console.log("...");
-      parseBooksHtml(request.html);
-      sendResponse({ success: true, message: "HTML processed successfully" });
     } else if (request.action === "PARSE_RESPONSE") {
       console.log("...");
       parseBooks(request.itemsList);
@@ -327,51 +351,6 @@ const parseQuotes = async (bookHtmlId, quotesHtml, lastBook) => {
   }
 };
 
-const parseBooksHtml = (html) => {
-  const parser = new DOMParser();
-  const document = parser.parseFromString(html, "text/html");
-
-  const booksHtml = document.querySelectorAll(
-    "#kp-notebook-library .kp-notebook-library-each-book"
-  );
-
-  let booksFound = [];
-  booksHtml.forEach((book, index) => {
-    const link = book.querySelector("a.a-link-normal");
-    const titleElement = book.querySelector("h2");
-    const authorElement = book.querySelector("p");
-    const imageElement = book.querySelector("img");
-    if (link && titleElement && imageElement) {
-      const bookTitle = titleElement.textContent?.trim() || "Untitled";
-      const bookAuthor = authorElement.textContent?.trim() || "Unknown";
-      const imageUrl = imageElement.src || "Unknown";
-
-      booksFound.push({
-        htmlId: book.id,
-        title: bookTitle.split(": ")[0],
-        subtitle: bookTitle.split(": ")[1],
-        author: bookAuthor.replace(/^By: /, ""),
-        imageUrl: imageUrl,
-      });
-      allBooks.push({
-        htmlId: book.id,
-        title: bookTitle.split(": ")[0],
-        subtitle: bookTitle.split(": ")[1],
-        author: bookAuthor.replace(/^By: /, ""),
-        imageUrl: imageUrl,
-      });
-    }
-  });
-
-  if (booksFound.length > 0) {
-    getBooksInformation.innerText = `Syncing ${booksFound.length} books...`;
-    chrome.runtime.sendMessage({
-      action: "GET_EACH_BOOK",
-      booksFound: booksFound,
-    });
-  }
-};
-
 const parseBooks = (itemsList) => {
   if (!Array.isArray(itemsList)) {
     console.error("Invalid itemsList:", itemsList);
@@ -406,11 +385,23 @@ const parseBooks = (itemsList) => {
   });
 
   if (booksFound.length > 0) {
-    getBooksInformation.innerText = `Syncing ${booksFound.length} books...`;
-    chrome.runtime.sendMessage({
-      action: "GET_EACH_BOOK",
-      booksFound: booksFound,
+    getBooksInformation.innerText = `Found ${booksFound.length} books...`;
+    const booksListElement = document.createElement("ul");
+    booksListElement.classList.add("list-disc", "ml-6");
+    booksFound.forEach((book) => {
+      const bookElement = document.createElement("li");
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = true;
+      checkbox.name = book.title;
+      bookElement.appendChild(checkbox);
+      const titleElement = document.createElement("span");
+      titleElement.classList.add("ml-2");
+      titleElement.textContent = book.title;
+      bookElement.appendChild(titleElement);
+      booksListElement.appendChild(bookElement);
     });
+    getBooksInformation.appendChild(booksListElement);
   }
 };
 
