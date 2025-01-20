@@ -21,48 +21,50 @@ let fetchInProgress = false;
 
 chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo, tab) {
   if (changeInfo.status === "complete") {
-    checkLoginStatus();
-    // Filter out non-webpage URLs like chrome://, edge://, about://, or new tab
-    const url = tab.url;
-    if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
-      if (fetchInProgress) {
-        console.log("Fetch already in progress");
-        return;
-      }
-
-      console.log(`Tab ${tabId} is a webpage and is fully loaded.`);
-      const todaysDate = new Date().toISOString().slice(0, 10);
-
-      chrome.cookies.get(
-        {
-          url: domain,
-          name: "lastUplaodToUnearthed",
-        },
-        function (cookie) {
-          if (!cookie || todaysDate != cookie.value) {
-            fetchInProgress = true;
-            fetchData();
-
-            chrome.cookies.set(
-              {
-                url: domain,
-                name: "lastUplaodToUnearthed",
-                value: todaysDate,
-              },
-              function (cookie) {
-                console.log("Cookie set:", cookie);
-              }
-            );
-          } else {
-            console.log("Already got them today");
-          }
+    setTimeout(function () {
+      checkLoginStatus();
+      // Filter out non-webpage URLs like chrome://, edge://, about://, or new tab
+      const url = tab.url;
+      if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
+        if (fetchInProgress) {
+          console.log("Fetch already in progress");
+          return;
         }
-      );
-    } else {
-      console.log(
-        `Script not injected as the tab ${tabId} is not a regular webpage.`
-      );
-    }
+
+        console.log(`Tab ${tabId} is a webpage and is fully loaded.`);
+        const todaysDate = new Date().toISOString().slice(0, 10);
+
+        chrome.cookies.get(
+          {
+            url: domain,
+            name: "lastUplaodToUnearthed",
+          },
+          function (cookie) {
+            if (!cookie || todaysDate != cookie.value) {
+              fetchInProgress = true;
+              fetchData(0, 3, null, [], true);
+
+              chrome.cookies.set(
+                {
+                  url: domain,
+                  name: "lastUplaodToUnearthed",
+                  value: todaysDate,
+                },
+                function (cookie) {
+                  console.log("Cookie set:", cookie);
+                }
+              );
+            } else {
+              console.log("Already got them today");
+            }
+          }
+        );
+      } else {
+        console.log(
+          `Script not injected as the tab ${tabId} is not a regular webpage.`
+        );
+      }
+    }, 2000);
   }
 });
 
@@ -70,7 +72,8 @@ async function fetchData(
   retries = 0,
   maxRetries = 3,
   paginationToken = null,
-  accumulatedItems = []
+  accumulatedItems = [],
+  runningInBackground = false
 ) {
   let urlToFetch =
     "https://read.amazon.com/kindle-library/search?libraryType=BOOKS&sortType=recency&querySize=50";
@@ -104,12 +107,15 @@ async function fetchData(
           0,
           maxRetries,
           res.paginationToken,
-          accumulatedItems
+          accumulatedItems,
+          runningInBackground
         );
       }
 
       chrome.runtime.sendMessage({
-        action: "PARSE_RESPONSE",
+        action: runningInBackground
+          ? "PARSE_RESPONSE_BACKGROUND"
+          : "PARSE_RESPONSE",
         itemsList: accumulatedItems,
       });
     } else {
@@ -120,7 +126,8 @@ async function fetchData(
           retries + 1,
           maxRetries,
           paginationToken,
-          accumulatedItems
+          accumulatedItems,
+          runningInBackground
         );
       } else {
         console.log("Max retries reached. Aborting.");
@@ -135,7 +142,8 @@ async function fetchData(
         retries + 1,
         maxRetries,
         paginationToken,
-        accumulatedItems
+        accumulatedItems,
+        runningInBackground
       );
     } else {
       console.log("Max retries reached. Aborting.");

@@ -88,7 +88,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>. -->
               />
             </div>
             <div class="flex md:hidden justify-center mt-2"></div>
-              <button id="getNewQuoteButton" class="bg-white inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent border-2 p-2.5 rounded-md transition-shadow duration-200 bg-card border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:shadow-[1px_1px_0px_rgba(0,0,0,1)]  h-10 px-4 py-2 mt-4 w-full" id="newQuoteButton" type="button">Get a new Daily Reflection</button>
+              <button id="getNewQuoteButton" class="bg-white inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent border-2 p-2.5 rounded-md transition-shadow duration-200 bg-card border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:shadow-[1px_1px_0px_rgba(0,0,0,1)]  h-10 px-4 py-2 mt-4 w-full" type="button">Get a new Daily Reflection</button>
             </div>
           </div>
         </div>
@@ -102,16 +102,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>. -->
               You can also force a sync by pressing this button
 
             </p>
-            <button id="getBooksButton" class="bg-white inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent border-2 p-2.5 rounded-md transition-shadow duration-200 bg-card border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:shadow-[1px_1px_0px_rgba(0,0,0,1)]  h-10 px-4 py-2 w-full" id="newQuoteButton" type="button">Get Kindle Books</button>
+            <button id="getBooksButton" class="bg-white inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent border-2 p-2.5 rounded-md transition-shadow duration-200 bg-card border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:shadow-[1px_1px_0px_rgba(0,0,0,1)]  h-10 px-4 py-2 w-full" type="button">Get Kindle Books</button>
           </div>
         </div>
 
         <div id="getBooksInformationDiv" class="mt-2 text-center" style="display: none">
           <div class="p-4 border-2 border-black rounded-lg bg-[hsl(337,68%,97%)]">
+            <div class="flex justify-between mb-2">
+              <div class="w-full">
+                <button id="deselectAll" class="bg-white inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent border-2 p-2.5 rounded-md transition-shadow duration-200 bg-card border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:shadow-[1px_1px_0px_rgba(0,0,0,1)]  h-10 px-4 py-2 w-full" id="deselectAllButton" type="button">Deselect All</button>
+              </div>
+              <div class="w-full ml-2">
+                <button id="selectAll" class="bg-white inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent border-2 p-2.5 rounded-md transition-shadow duration-200 bg-card border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:shadow-[1px_1px_0px_rgba(0,0,0,1)]  h-10 px-4 py-2 w-full" id="selectAllButton" type="button">Select All</button>
+              </div>
+            </div>
             <p id="getBooksInformation" class="text-xs text-neutral-600 mb-2">
             </p>
-              <button id="continueGetBooks" class="bg-white inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent border-2 p-2.5 rounded-md transition-shadow duration-200 bg-card border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:shadow-[1px_1px_0px_rgba(0,0,0,1)]  h-10 px-4 py-2 w-full" id="newQuoteButton" type="button">Continue</button>
-              <button style="display:none;" id="downloadCsv" class="bg-white inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent border-2 p-2.5 rounded-md transition-shadow duration-200 bg-card border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:shadow-[1px_1px_0px_rgba(0,0,0,1)]  h-10 px-4 py-2 w-full" id="newQuoteButton" type="button">Download CSV</button>
+            <button id="continueGetBooks" class="bg-white inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent border-2 p-2.5 rounded-md transition-shadow duration-200 bg-card border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:shadow-[1px_1px_0px_rgba(0,0,0,1)]  h-10 px-4 py-2 w-full" type="button">Continue</button>
+            <button style="display:none;" id="downloadCsv" class="bg-white inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent border-2 p-2.5 rounded-md transition-shadow duration-200 bg-card border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:shadow-[1px_1px_0px_rgba(0,0,0,1)]  h-10 px-4 py-2 w-full" type="button">Download CSV</button>
           </div>
         </div>
 
@@ -124,7 +132,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>. -->
               <br />
               After you login, open the extension and try the 'Get Kindle Books' button again.
             </p>
-            <button id="loginToKindleButton" class="bg-red-400 inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent border-2 p-2.5 rounded-md transition-shadow duration-200 bg-card border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:shadow-[1px_1px_0px_rgba(0,0,0,1)]  h-10 px-4 py-2 w-full" id="newQuoteButton" type="button">Login to read.amazon.com</button>
+            <button id="loginToKindleButton" class="bg-red-400 inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent border-2 p-2.5 rounded-md transition-shadow duration-200 bg-card border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:shadow-[1px_1px_0px_rgba(0,0,0,1)]  h-10 px-4 py-2 w-full" type="button">Login to read.amazon.com</button>
           </div>
         </div>
       </div>
