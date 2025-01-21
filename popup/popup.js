@@ -23,7 +23,6 @@ let user = {};
 let books = [];
 let currentUrl = "";
 let dailyReflection = {};
-let allBooks = [];
 let booksForCsv = [];
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -55,6 +54,8 @@ document.addEventListener("DOMContentLoaded", function () {
   const getNewQuoteButton = document.getElementById("getNewQuoteButton");
   const continueGetBooks = document.getElementById("continueGetBooks");
   const downloadCsv = document.getElementById("downloadCsv");
+  const deselectAll = document.getElementById("deselectAll");
+  const selectAll = document.getElementById("selectAll");
 
   getBooksButton.addEventListener("click", () => {
     dailyReflectionDiv.style.display = "none";
@@ -69,6 +70,24 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 
+  deselectAll.addEventListener("click", () => {
+    const checkboxes = document.querySelectorAll(
+      "#getBooksInformation input[type='checkbox']"
+    );
+    checkboxes.forEach((checkbox) => {
+      checkbox.checked = false;
+    });
+  });
+
+  selectAll.addEventListener("click", () => {
+    const checkboxes = document.querySelectorAll(
+      "#getBooksInformation input[type='checkbox']"
+    );
+    checkboxes.forEach((checkbox) => {
+      checkbox.checked = true;
+    });
+  });
+
   continueGetBooks.addEventListener("click", () => {
     const ignoredBookTitles = Array.from(
       document.querySelectorAll(
@@ -76,24 +95,14 @@ document.addEventListener("DOMContentLoaded", function () {
       )
     ).map((checkbox) => checkbox.name);
 
-    const booksToGet = allBooks.filter((book) => {
-      return ignoredBookTitles.includes(book.title);
-    });
-
-    allBooks = allBooks.filter((book) => {
-      return ignoredBookTitles.includes(book.title);
-    });
-
+    deselectAll.style.display = "none";
+    selectAll.style.display = "none";
     continueGetBooks.style.display = "none";
-    if (booksToGet.length > 0) {
-      getBooksInformation.innerText = "Continuing...";
-      chrome.runtime.sendMessage({
-        action: "GET_EACH_BOOK",
-        booksFound: booksToGet,
-      });
-    } else {
-      getBooksInformation.innerText = "No books synced";
-    }
+    getBooksInformation.innerText = "Continuing...";
+    chrome.runtime.sendMessage({
+      action: "GET_EACH_BOOK",
+      ignoredBookTitles: ignoredBookTitles,
+    });
   });
 
   downloadCsv.addEventListener("click", () => {
@@ -275,7 +284,7 @@ document.addEventListener("DOMContentLoaded", function () {
             }
           );
         } else {
-          // window.close();
+          // window.close()
         }
       }, 1000);
     }
@@ -295,142 +304,96 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    console.log("chrome.runtime.onMessage");
-    if (request.action === "GETTING_BOOKS_DONE") {
-      getBooksInformation.innerText = "Complete, you will be able to view your books on unearthed.app soon.";
-      downloadCsv.style.display = "block";
-
-      // chrome.tabs.create(
-      //   {
-      //     url: isPremium
-      //       ? `${domain}/premium/books`
-      //       : `${domain}/dashboard/books`,
-      //   },
-      //   function (tab) {}
-      // );
-    } else if (request.action === "GETTING_BOOKS_FAILED") {
+    if (request.action === "GETTING_BOOKS_FAILED") {
       getBooksDiv.style.display = "none";
       loginToKindleDiv.style.display = "block";
       console.log("getting books failed");
     } else if (request.action === "PARSE_RESPONSE") {
+      parseBooks(request.itemsList, false);
+      sendResponse({ success: true, message: "JSON processed successfully" });
+    } else if (request.action === "PARSE_RESPONSE_BACKGROUND") {
       console.log("...");
-      parseBooks(request.itemsList);
+      parseBooks(request.itemsList, true);
       sendResponse({ success: true, message: "JSON processed successfully" });
     } else if (request.action === "ADD_QUOTES_TO_BOOK") {
       parseQuotes(request.book.htmlId, request.html, request.lastBook);
       sendResponse({ success: true, message: "HTML processed successfully" });
+    } else if (request.action === "PARSE_BOOKS_COMPLETE") {
+      var booksFound = request.booksFound;
+      getBooksInformation.innerText = `Found ${booksFound.length} books...`;
+      const booksListElement = document.createElement("ul");
+      booksListElement.classList.add("list-none");
+      booksFound.forEach((book) => {
+        const bookElement = document.createElement("li");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = true;
+        checkbox.name = book.title;
+        bookElement.appendChild(checkbox);
+        const titleElement = document.createElement("span");
+        titleElement.classList.add("ml-2");
+        titleElement.textContent = book.title;
+        bookElement.appendChild(titleElement);
+        booksListElement.appendChild(bookElement);
+      });
+      getBooksInformation.appendChild(booksListElement);
+    } else if (request.action === "BOOKS_UPLOAD_SUCCESS") {
+      request.booksUploaded.forEach((book) => {
+        getBooksInformation.innerText += `\nUploaded ${book.title}`;
+      });
+      sendResponse({ success: true, message: "BOOKS_UPLOAD_SUCCESS" });
+    } else if (request.action === "NO_BOOKS_SELECTED") {
+      getBooksInformation.innerText = "No books synced";
+      sendResponse({ success: true, message: "NO_BOOKS_SELECTED" });
+    } else if (request.action === "FINISHED_UPLOAD") {
+      let finishedHtml = "Done";
+      let failedBooks = [];
+      let succeededBooks = [];
+
+      request.allBooks.forEach((book) => {
+        if (book.uploaded) {
+          succeededBooks.push(book);
+        } else {
+          failedBooks.push(book);
+        }
+      });
+
+      if (failedBooks.length > 0) {
+        finishedHtml += `\n${failedBooks.length} book${
+          failedBooks.length > 1 ? "s" : ""
+        } failed to upload`;
+      }
+      failedBooks.forEach((book) => {
+        finishedHtml += `\nFAILED: ${book.title}`;
+      });
+      if (failedBooks.length > 0) {
+        finishedHtml += `\n---`;
+      }
+
+      if (succeededBooks.length > 0) {
+        finishedHtml += `\n${succeededBooks.length} book${
+          succeededBooks.length > 1 ? "s" : ""
+        } uploaded`;
+      }
+      succeededBooks.forEach((book) => {
+        finishedHtml += `\nUploaded: ${book.title}`;
+      });
+
+      if (succeededBooks.length > 0) {
+        finishedHtml += `\n\nView your books on unearthed.app`;
+      }
+
+      getBooksInformation.innerText = finishedHtml;
+
+
+          booksForCsv = request.allBooks;
+          downloadCsv.style.display = "block";
+
+      sendResponse({ success: true, message: "NO_BOOKS_SELECTED" });
     }
   });
 });
 
-const parseQuotes = async (bookHtmlId, quotesHtml, lastBook) => {
-  const matchingBook = allBooks.find((book) => book.htmlId === bookHtmlId);
-
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(quotesHtml, "text/html");
-
-  const annotations = [];
-
-  const quotes = doc.querySelectorAll("#highlight");
-  const note = doc.querySelectorAll("#note");
-  const colorsAndLocations = doc.querySelectorAll("#annotationHighlightHeader");
-
-  const length = Math.min(
-    quotes.length,
-    note.length,
-    colorsAndLocations.length
-  );
-
-  for (let i = 0; i < length; i++) {
-    annotations.push({
-      quote: quotes[i].textContent?.trim() || "",
-      note: note[i].textContent?.trim() || "",
-      color: colorsAndLocations[i].textContent?.trim().split(" | ")[0] || "",
-      location: colorsAndLocations[i].textContent?.trim().split(" | ")[1] || "",
-    });
-  }
-  matchingBook.annotations = annotations;
-
-  getBooksInformation.innerText += `\n${matchingBook.title} has ${
-    annotations.length
-  } quote${annotations.length == 1 ? "" : "s"}...`;
-
-  booksForCsv.push(matchingBook);
-
-  if (lastBook) {
-    chrome.runtime.sendMessage({
-      action: "UPLOAD_BOOKS",
-      books: allBooks,
-    });
-  }
-};
-
-const parseBooks = (itemsList) => {
-  if (!Array.isArray(itemsList)) {
-    console.error("Invalid itemsList:", itemsList);
-    return;
-  }
-  let booksFound = [];
-  itemsList.forEach((book, index) => {
-    const bookTitle = book.title?.trim() || "Untitled";
-    const bookAuthor =
-      book.authors && book.authors[0]
-        ? formatAuthorName(book.authors[0])
-        : "Unknown";
-    const titleParts = bookTitle.split(": ");
-
-    booksFound.push({
-      htmlId: book.asin,
-      title: titleParts[0],
-      subtitle: titleParts[1] || "",
-      author: bookAuthor,
-      imageUrl: book.productUrl,
-      asin: book.asin,
-    });
-
-    allBooks.push({
-      htmlId: book.asin,
-      title: titleParts[0],
-      subtitle: titleParts[1] || "",
-      author: bookAuthor,
-      imageUrl: book.productUrl,
-      asin: book.asin,
-    });
-  });
-
-  if (booksFound.length > 0) {
-    getBooksInformation.innerText = `Found ${booksFound.length} books...`;
-    const booksListElement = document.createElement("ul");
-    booksListElement.classList.add("list-none");
-    booksFound.forEach((book) => {
-      const bookElement = document.createElement("li");
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.checked = true;
-      checkbox.name = book.title;
-      bookElement.appendChild(checkbox);
-      const titleElement = document.createElement("span");
-      titleElement.classList.add("ml-2");
-      titleElement.textContent = book.title;
-      bookElement.appendChild(titleElement);
-      booksListElement.appendChild(bookElement);
-    });
-    getBooksInformation.appendChild(booksListElement);
-  }
-};
-
-function formatAuthorName(author) {
-  if (author.endsWith(":")) {
-    author = author.slice(0, -1);
-  }
-  const parts = author.split(",").map((part) => part.trim());
-  if (parts.length === 2) {
-    const [lastName, firstName] = parts;
-    return `${firstName} ${lastName}`;
-  } else {
-    return author; // Return original name if format is unexpected
-  }
-}
 function convertBooksToCSV(books) {
   let csv = [
     [
