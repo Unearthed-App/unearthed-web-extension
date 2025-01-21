@@ -19,6 +19,7 @@ const domain = "https://unearthed.app";
 
 let fetchInProgress = false;
 
+let allBooks = [];
 chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo, tab) {
   if (changeInfo.status === "complete") {
     setTimeout(function () {
@@ -112,12 +113,7 @@ async function fetchData(
         );
       }
 
-      chrome.runtime.sendMessage({
-        action: runningInBackground
-          ? "PARSE_RESPONSE_BACKGROUND"
-          : "PARSE_RESPONSE",
-        itemsList: accumulatedItems,
-      });
+      parseBooks(accumulatedItems, runningInBackground);
     } else {
       console.error("Error fetching data 1:", response.statusText);
       if (retries < maxRetries) {
@@ -180,7 +176,6 @@ async function checkLoginStatus() {
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log("onMessage", request.action);
   if (request.action === "GET_BOOKS") {
     fetchData();
 
@@ -206,7 +201,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === "UPLOAD_BOOKS") {
     bookUploadProcess(request.books);
   } else if (request.action === "GET_EACH_BOOK") {
-    getEachBook(request.booksFound);
+    const ignoredBookTitles = request.ignoredBookTitles;
+
+    allBooks = allBooks.filter((book) => {
+      return ignoredBookTitles.includes(book.title);
+    });
+
+    if (allBooks.length > 0) {
+      getEachBook();
+    } else {
+      chrome.runtime.sendMessage({
+        action: "NO_BOOKS_SELECTED",
+      });
+    }
   }
 });
 
@@ -304,17 +311,14 @@ const bookUploadProcess = async (booksPassedIn) => {
     }
   }
 
-  if (!errorOccured) {
-  }
-
   fetchInProgress = false;
 
-  chrome.runtime.sendMessage({
-    action: "GETTING_BOOKS_DONE",
-  });
+  return !errorOccured;
 };
-const getEachBook = async (booksFound, maxRetries = 3) => {
-  for (const book of booksFound) {
+const getEachBook = async (maxRetries = 3) => {
+  await ensureOffscreen();
+
+  for (const book of allBooks) {
     let retries = 0;
     let success = false;
 
@@ -345,14 +349,25 @@ const getEachBook = async (booksFound, maxRetries = 3) => {
 
         if (response.ok) {
           const html = await response.text();
-          const lastBook = booksFound.indexOf(book) === booksFound.length - 1;
+          // const lastBook = allBooks.indexOf(book) === allBooks.length - 1;
 
-          chrome.runtime.sendMessage({
-            action: "ADD_QUOTES_TO_BOOK",
-            book: book,
-            html: html,
-            lastBook: lastBook,
-          });
+          try {
+            await parseSingleBook(book.htmlId, html);
+
+            let bookSuccess = await uploadSingleBook(book);
+
+            book.uploaded = bookSuccess;
+            let booksUploaded = [];
+            if (bookSuccess) {
+              booksUploaded.push(book);
+              chrome.runtime.sendMessage({
+                action: "BOOKS_UPLOAD_SUCCESS",
+                booksUploaded,
+              });
+            }
+          } catch (error) {
+            console.error("Error parsing HTML:", error);
+          }
 
           success = true;
         } else {
@@ -362,6 +377,7 @@ const getEachBook = async (booksFound, maxRetries = 3) => {
           throw new Error(response.statusText);
         }
       } catch (error) {
+        console.error(error);
         retries++;
         console.error(
           `Retrying for book ${book.htmlId}... (${retries}/${maxRetries})`
@@ -375,4 +391,106 @@ const getEachBook = async (booksFound, maxRetries = 3) => {
       }
     }
   }
+
+  chrome.runtime.sendMessage({
+    action: "FINISHED_UPLOAD",
+    allBooks,
+  });
+};
+
+const parseBooks = (itemsList, runningInBackground) => {
+  if (!Array.isArray(itemsList)) {
+    console.error("Invalid itemsList:", itemsList);
+    return;
+  }
+  let booksFound = [];
+  itemsList.forEach((book, index) => {
+    const bookTitle = book.title?.trim() || "Untitled";
+    const bookAuthor =
+      book.authors && book.authors[0]
+        ? formatAuthorName(book.authors[0])
+        : "Unknown";
+    const titleParts = bookTitle.split(": ");
+
+    booksFound.push({
+      htmlId: book.asin,
+      title: titleParts[0],
+      subtitle: titleParts[1] || "",
+      author: bookAuthor,
+      imageUrl: book.productUrl,
+      asin: book.asin,
+    });
+
+    allBooks.push({
+      htmlId: book.asin,
+      title: titleParts[0],
+      subtitle: titleParts[1] || "",
+      author: bookAuthor,
+      imageUrl: book.productUrl,
+      asin: book.asin,
+    });
+  });
+
+  if (booksFound.length > 0) {
+    console.log("NEW ONE");
+    if (runningInBackground) {
+      allBooks = booksFound;
+      getEachBook();
+    } else {
+      chrome.runtime.sendMessage({
+        action: "PARSE_BOOKS_COMPLETE",
+        booksFound: booksFound,
+      });
+    }
+  }
+};
+
+function formatAuthorName(author) {
+  if (author.endsWith(":")) {
+    author = author.slice(0, -1);
+  }
+  const parts = author.split(",").map((part) => part.trim());
+  if (parts.length === 2) {
+    const [lastName, firstName] = parts;
+    return `${firstName} ${lastName}`;
+  } else {
+    return author; // Return original name if format is unexpected
+  }
+}
+
+async function parseSingleBook(htmlId, htmlContent) {
+  let annotations = await new Promise((resolve) => {
+    chrome.runtime.onMessage.addListener(function listener(message) {
+      if (message.type === "PARSED_HTML") {
+        chrome.runtime.onMessage.removeListener(listener);
+        resolve(message.data);
+      }
+    });
+
+    chrome.runtime.sendMessage({
+      type: "PARSE_HTML",
+      html: htmlContent,
+    });
+  });
+
+  const book = allBooks.find((book) => book.htmlId === htmlId);
+  if (book) {
+    book.annotations = annotations;
+  }
+}
+
+async function ensureOffscreen() {
+  if (await chrome.offscreen.hasDocument()) {
+    return;
+  }
+
+  await chrome.offscreen.createDocument({
+    url: "offscreen.html",
+    reasons: ["DOM_PARSER"],
+    justification: "Parse HTML content in a headless environment",
+  });
+}
+
+const uploadSingleBook = async (booksPassedIn) => {
+  return await bookUploadProcess([booksPassedIn]);
 };
