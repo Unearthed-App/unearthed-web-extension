@@ -315,80 +315,83 @@ const bookUploadProcess = async (booksPassedIn) => {
 
   return !errorOccured;
 };
-const getEachBook = async (maxRetries = 3) => {
+const getEachBook = async (maxRetries = 5) => {
   await ensureOffscreen();
+  const retryDelays = [1000, 2000, 4000, 8000, 16000]; // Exponential backoff with jitter
 
   for (const book of allBooks) {
     let retries = 0;
     let success = false;
+    const controller = new AbortController();
 
     while (retries < maxRetries && !success) {
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
       try {
         const urlToFetch = `https://read.amazon.com/notebook?asin=${book.htmlId}&contentLimitState=&`;
-        console.log("urlToFetch", urlToFetch);
+        console.log(
+          "Processing:",
+          book.htmlId,
+          `(Attempt ${retries + 1}/${maxRetries})`
+        );
 
         const response = await fetch(urlToFetch, {
           headers: {
             accept: "*/*",
-            downlink: "10",
-            dpr: "2",
-            ect: "4g",
-            priority: "u=1, i",
-            rtt: "50",
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-origin",
             "x-requested-with": "XMLHttpRequest",
           },
+          signal: controller.signal,
           referrerPolicy: "strict-origin-when-cross-origin",
-          body: null,
           method: "GET",
           mode: "cors",
           credentials: "include",
         });
 
-        if (response.ok) {
-          const html = await response.text();
-          // const lastBook = allBooks.indexOf(book) === allBooks.length - 1;
+        if (response.status === 429) {
+          const retryAfter =
+            response.headers.get("Retry-After") ||
+            Math.min(30, retryDelays[retries] + Math.random() * 1000);
+          console.log(`Rate limited. Waiting ${Math.round(retryAfter)}ms`);
+          await new Promise((resolve) => setTimeout(resolve, retryAfter));
+          continue;
+        }
 
-          try {
-            await parseSingleBook(book.htmlId, html);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-            let bookSuccess = await uploadSingleBook(book);
-
-            book.uploaded = bookSuccess;
-            let booksUploaded = [];
-            if (bookSuccess) {
-              booksUploaded.push(book);
-              chrome.runtime.sendMessage({
-                action: "BOOKS_UPLOAD_SUCCESS",
-                booksUploaded,
-              });
-            }
-          } catch (error) {
-            console.error("Error parsing HTML:", error);
-          }
-
+        const html = await response.text();
+        await parseSingleBook(book.htmlId, html);
+        const bookSuccess = await uploadSingleBook(book);
+        book.uploaded = bookSuccess;
+        if (bookSuccess) {
+          chrome.runtime.sendMessage({
+            action: "BOOKS_UPLOAD_SUCCESS",
+            booksUploaded: [book],
+          });
           success = true;
         } else {
-          console.error(
-            `Error fetching book ${book.htmlId}: ${response.statusText}`
-          );
-          throw new Error(response.statusText);
+          throw new Error("Upload failed");
         }
       } catch (error) {
-        console.error(error);
-        retries++;
         console.error(
-          `Retrying for book ${book.htmlId}... (${retries}/${maxRetries})`
+          `Attempt ${retries + 1} failed for ${book.htmlId}:`,
+          error.message
         );
 
-        if (retries === maxRetries) {
-          console.error(
-            `Failed to fetch book ${book.htmlId} after ${maxRetries} attempts.`
-          );
+        if (++retries < maxRetries) {
+          const delay = retryDelays[retries - 1] + Math.random() * 1000;
+          console.log(`Waiting ${Math.round(delay)}ms before retry...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
+      } finally {
+        clearTimeout(timeoutId);
       }
+    }
+
+    if (!success) {
+      book.uploaded = false;
+      console.error(
+        `Failed to process book ${book.htmlId} after ${maxRetries} attempts`
+      );
     }
   }
 
