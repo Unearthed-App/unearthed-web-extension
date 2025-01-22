@@ -53,6 +53,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const getBooksDiv = document.getElementById("getBooksDiv");
   const getNewQuoteButton = document.getElementById("getNewQuoteButton");
   const continueGetBooks = document.getElementById("continueGetBooks");
+  const goToUnearthed = document.getElementById("goToUnearthed");
   const downloadCsv = document.getElementById("downloadCsv");
   const deselectAll = document.getElementById("deselectAll");
   const selectAll = document.getElementById("selectAll");
@@ -379,14 +380,15 @@ document.addEventListener("DOMContentLoaded", function () {
         finishedHtml += `\nUploaded: ${book.title}`;
       });
 
-      if (succeededBooks.length > 0) {
-        finishedHtml += `\n\nView your books on unearthed.app`;
-      }
+      // if (succeededBooks.length > 0) {
+      //   finishedHtml += `\n\nView your books on unearthed.app`;
+      // }
 
       getBooksInformation.innerText = finishedHtml;
 
 
           booksForCsv = request.allBooks;
+          goToUnearthed.style.display = "block";
           downloadCsv.style.display = "block";
 
       sendResponse({ success: true, message: "NO_BOOKS_SELECTED" });
