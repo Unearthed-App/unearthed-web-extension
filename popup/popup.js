@@ -90,7 +90,7 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   continueGetBooks.addEventListener("click", () => {
-    const ignoredBookTitles = Array.from(
+    const allowedBookTitles = Array.from(
       document.querySelectorAll(
         "#getBooksInformation input[type='checkbox']:checked"
       )
@@ -102,7 +102,7 @@ document.addEventListener("DOMContentLoaded", function () {
     getBooksInformation.innerText = "Continuing...";
     chrome.runtime.sendMessage({
       action: "GET_EACH_BOOK",
-      ignoredBookTitles: ignoredBookTitles,
+      allowedBookTitles: allowedBookTitles,
     });
   });
 
@@ -386,10 +386,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
       getBooksInformation.innerText = finishedHtml;
 
-
-          booksForCsv = request.allBooks;
-          goToUnearthed.style.display = "block";
-          downloadCsv.style.display = "block";
+      booksForCsv = request.allBooks;
+      goToUnearthed.style.display = "block";
+      downloadCsv.style.display = "block";
 
       sendResponse({ success: true, message: "NO_BOOKS_SELECTED" });
     }
@@ -412,32 +411,32 @@ function convertBooksToCSV(books) {
   ];
 
   books.forEach((book) => {
-    if (book.annotations.length > 0) {
+    if (Array.isArray(book.annotations) && book.annotations.length > 0) {
       book.annotations.forEach((annotation) => {
         csv.push([
-          book.title,
-          book.subtitle,
-          book.author,
-          book.imageUrl,
-          book.asin,
-          annotation.quote,
-          annotation.note,
-          annotation.color,
-          annotation.location,
+          book.title || "",
+          book.subtitle || "",
+          book.author || "",
+          book.imageUrl || "",
+          book.asin || "",
+          annotation.quote || "",
+          annotation.note || "",
+          annotation.color || "",
+          annotation.location || "",
         ]);
       });
     } else {
-      // csv.push([
-      //   book.title,
-      //   book.subtitle,
-      //   book.author,
-      //   book.imageUrl,
-      //   book.asin,
-      //   "",
-      //   "",
-      //   "",
-      //   "",
-      // ]);
+      csv.push([
+        book.title || "",
+        book.subtitle || "",
+        book.author || "",
+        book.imageUrl || "",
+        book.asin || "",
+        "", // quote
+        "", // note
+        "", // color
+        "", // location
+      ]);
     }
   });
 

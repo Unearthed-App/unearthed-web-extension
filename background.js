@@ -113,7 +113,7 @@ async function fetchData(
         );
       }
 
-      parseBooks(accumulatedItems, runningInBackground);
+      await parseBooks(accumulatedItems, runningInBackground);
     } else {
       console.error("Error fetching data 1:", response.statusText);
       if (retries < maxRetries) {
@@ -201,10 +201,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === "UPLOAD_BOOKS") {
     bookUploadProcess(request.books);
   } else if (request.action === "GET_EACH_BOOK") {
-    const ignoredBookTitles = request.ignoredBookTitles;
+    const allowedBookTitles = request.allowedBookTitles;
 
     allBooks = allBooks.filter((book) => {
-      return ignoredBookTitles.includes(book.title);
+      return allowedBookTitles.includes(book.title);
     });
 
     if (allBooks.length > 0) {
@@ -401,12 +401,11 @@ const getEachBook = async (maxRetries = 5) => {
   });
 };
 
-const parseBooks = (itemsList, runningInBackground) => {
+const parseBooks = async (itemsList, runningInBackground) => {
   if (!Array.isArray(itemsList)) {
     console.error("Invalid itemsList:", itemsList);
     return;
   }
-  let booksFound = [];
   itemsList.forEach((book, index) => {
     const bookTitle = book.title?.trim() || "Untitled";
     const bookAuthor =
@@ -415,14 +414,6 @@ const parseBooks = (itemsList, runningInBackground) => {
         : "Unknown";
     const titleParts = bookTitle.split(": ");
 
-    booksFound.push({
-      htmlId: book.asin,
-      title: titleParts[0],
-      subtitle: titleParts[1] || "",
-      author: bookAuthor,
-      imageUrl: book.productUrl,
-      asin: book.asin,
-    });
 
     allBooks.push({
       htmlId: book.asin,
@@ -434,15 +425,30 @@ const parseBooks = (itemsList, runningInBackground) => {
     });
   });
 
-  if (booksFound.length > 0) {
-    console.log("NEW ONE");
+  allBooks = allBooks.reduce((acc, book) => {
+    const existingBook = acc.find((b) => b.htmlId === book.htmlId);
+    if (existingBook) {
+      console.log('FOUND EXISINTG BOOK', book);
+      existingBook.title = book.title;
+      existingBook.subtitle = book.subtitle;
+      existingBook.author = book.author;
+      existingBook.imageUrl = book.imageUrl;
+      existingBook.asin = book.asin;
+    } else {
+      // console.log('FOUND EXISINTG BOOK', book);
+      acc.push(book);
+    }
+    return acc;
+  }, []);
+
+  if (allBooks.length > 0) {
     if (runningInBackground) {
-      allBooks = booksFound;
+      // allBooks = booksFound;
       getEachBook();
     } else {
       chrome.runtime.sendMessage({
         action: "PARSE_BOOKS_COMPLETE",
-        booksFound: booksFound,
+        booksFound: allBooks,
       });
     }
   }
