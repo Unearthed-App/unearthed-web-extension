@@ -65,7 +65,7 @@ chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo, tab) {
           `Script not injected as the tab ${tabId} is not a regular webpage.`
         );
       }
-    }, 2000);
+    }, 1000);
   }
 });
 
@@ -177,6 +177,8 @@ async function checkLoginStatus() {
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "GET_BOOKS") {
+    chrome.tabs.create({ url: domain, active: false });
+
     fetchData();
 
     const todaysDate = new Date().toISOString().slice(0, 10);
@@ -414,7 +416,6 @@ const parseBooks = async (itemsList, runningInBackground) => {
         : "Unknown";
     const titleParts = bookTitle.split(": ");
 
-
     allBooks.push({
       htmlId: book.asin,
       title: titleParts[0],
@@ -428,7 +429,7 @@ const parseBooks = async (itemsList, runningInBackground) => {
   allBooks = allBooks.reduce((acc, book) => {
     const existingBook = acc.find((b) => b.htmlId === book.htmlId);
     if (existingBook) {
-      console.log('FOUND EXISINTG BOOK', book);
+      console.log("FOUND EXISINTG BOOK", book);
       existingBook.title = book.title;
       existingBook.subtitle = book.subtitle;
       existingBook.author = book.author;
