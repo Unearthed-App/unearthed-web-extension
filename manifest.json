@@ -3,7 +3,7 @@
   "name": "Unearthed App",
   "version": "1.1.9",
   "description": "Sync your Kindle quotes and notes",
-  "permissions": ["cookies", "tabs", "storage", "offscreen"],
+  "permissions": ["cookies", "tabs", "storage"],
   "host_permissions": [
     "https://unearthed.app/*",
     "https://read.amazon.com/*",
