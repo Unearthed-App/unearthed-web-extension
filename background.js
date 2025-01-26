@@ -219,8 +219,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {});
-
 const bookUploadProcess = async (booksPassedIn) => {
   let updatedBooks = [];
 
@@ -318,7 +316,6 @@ const bookUploadProcess = async (booksPassedIn) => {
   return !errorOccured;
 };
 const getEachBook = async (maxRetries = 5) => {
-  await ensureOffscreen();
   const retryDelays = [1000, 2000, 4000, 8000, 16000]; // Exponential backoff with jitter
 
   for (const book of allBooks) {
@@ -470,15 +467,15 @@ function formatAuthorName(author) {
 
 async function parseSingleBook(htmlId, htmlContent) {
   let annotations = await new Promise((resolve) => {
-    chrome.runtime.onMessage.addListener(function listener(message) {
-      if (message.type === "PARSED_HTML") {
+    chrome.runtime.onMessage.addListener(function listener(request) {
+      if (request.action === "PARSED_HTML") {
         chrome.runtime.onMessage.removeListener(listener);
-        resolve(message.data);
+        resolve(request.data);
       }
     });
 
     chrome.runtime.sendMessage({
-      type: "PARSE_HTML",
+      action: "PARSE_HTML",
       html: htmlContent,
     });
   });
@@ -487,18 +484,6 @@ async function parseSingleBook(htmlId, htmlContent) {
   if (book) {
     book.annotations = annotations;
   }
-}
-
-async function ensureOffscreen() {
-  if (await chrome.offscreen.hasDocument()) {
-    return;
-  }
-
-  await chrome.offscreen.createDocument({
-    url: "offscreen.html",
-    reasons: ["DOM_PARSER"],
-    justification: "Parse HTML content in a headless environment",
-  });
 }
 
 const uploadSingleBook = async (booksPassedIn) => {

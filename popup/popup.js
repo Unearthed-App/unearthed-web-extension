@@ -391,6 +391,36 @@ document.addEventListener("DOMContentLoaded", function () {
       downloadCsv.style.display = "block";
 
       sendResponse({ success: true, message: "NO_BOOKS_SELECTED" });
+    } else if (request.action === "PARSE_HTML") {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(request.html, "text/html");
+
+      const annotations = [];
+
+      const quotes = doc.querySelectorAll("#highlight");
+      const note = doc.querySelectorAll("#note");
+      const colorsAndLocations = doc.querySelectorAll(
+        "#annotationHighlightHeader"
+      );
+
+      const length = Math.min(
+        quotes.length,
+        note.length,
+        colorsAndLocations.length
+      );
+
+      for (let i = 0; i < length; i++) {
+        annotations.push({
+          quote: quotes[i].textContent?.trim() || "",
+          note: note[i].textContent?.trim() || "",
+          color:
+            colorsAndLocations[i].textContent?.trim().split(" | ")[0] || "",
+          location:
+            colorsAndLocations[i].textContent?.trim().split(" | ")[1] || "",
+        });
+      }
+
+      chrome.runtime.sendMessage({ action: "PARSED_HTML", data: annotations });
     }
   });
 });
