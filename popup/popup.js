@@ -395,6 +395,20 @@ document.addEventListener("DOMContentLoaded", function () {
       const parser = new DOMParser();
       const doc = parser.parseFromString(request.html, "text/html");
 
+      const continuationTokenInput = doc.querySelector(
+        ".kp-notebook-annotations-next-page-start"
+      );
+      const continuationToken = continuationTokenInput
+        ? continuationTokenInput.value
+        : null;
+
+      const contentLimitStateInput = doc.querySelector(
+        ".kp-notebook-content-limit-state"
+      );
+      const contentLimitState = contentLimitStateInput
+        ? contentLimitStateInput.value
+        : null;
+
       const annotations = [];
 
       const quotes = doc.querySelectorAll("#highlight");
@@ -420,7 +434,7 @@ document.addEventListener("DOMContentLoaded", function () {
         });
       }
 
-      chrome.runtime.sendMessage({ action: "PARSED_HTML", data: annotations });
+      chrome.runtime.sendMessage({ action: "PARSED_HTML", data: annotations, continuationToken, contentLimitState });
     }
   });
 });
