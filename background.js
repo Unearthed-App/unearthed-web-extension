@@ -315,19 +315,32 @@ const bookUploadProcess = async (booksPassedIn) => {
 
   return !errorOccured;
 };
+
 const getEachBook = async (maxRetries = 5) => {
   const retryDelays = [1000, 2000, 4000, 8000, 16000]; // Exponential backoff with jitter
 
   for (const book of allBooks) {
     let retries = 0;
     let success = false;
-    const controller = new AbortController();
+    let continuationToken = null;
+    let contentLimitState = null;
 
     while (retries < maxRetries && !success) {
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
       try {
-        const urlToFetch = `https://read.amazon.com/notebook?asin=${book.htmlId}&contentLimitState=&`;
+        let urlToFetch;
+        if (!continuationToken) {
+          urlToFetch = `https://read.amazon.com/notebook?asin=${book.htmlId}&contentLimitState=&`;
+        } else {
+          urlToFetch = `https://read.amazon.com/notebook?asin=${
+            book.htmlId
+          }&token=${encodeURIComponent(
+            continuationToken
+          )}&contentLimitState=${encodeURIComponent(contentLimitState)}`;
+        }
+
         console.log(
           "Processing:",
           book.htmlId,
@@ -358,24 +371,31 @@ const getEachBook = async (maxRetries = 5) => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const html = await response.text();
-        await parseSingleBook(book.htmlId, html);
-        const bookSuccess = await uploadSingleBook(book);
-        book.uploaded = bookSuccess;
-        if (bookSuccess) {
-          chrome.runtime.sendMessage({
-            action: "BOOKS_UPLOAD_SUCCESS",
-            booksUploaded: [book],
-          });
-          success = true;
-        } else {
-          throw new Error("Upload failed");
+        const result = await parseSingleBook(book.htmlId, html);
+
+        if (result) {
+          continuationToken = result.continuationToken;
+          contentLimitState = result.contentLimitState;
+
+          if (!continuationToken) {
+            const uploadSuccess = await uploadSingleBook(book);
+            book.uploaded = uploadSuccess;
+            if (uploadSuccess) {
+              chrome.runtime.sendMessage({
+                action: "BOOKS_UPLOAD_SUCCESS",
+                booksUploaded: [book],
+              });
+              success = true;
+            }
+          } else {
+            retries = -1;
+          }
         }
       } catch (error) {
         console.error(
           `Attempt ${retries + 1} failed for ${book.htmlId}:`,
           error.message
         );
-
         if (++retries < maxRetries) {
           const delay = retryDelays[retries - 1] + Math.random() * 1000;
           console.log(`Waiting ${Math.round(delay)}ms before retry...`);
@@ -383,6 +403,15 @@ const getEachBook = async (maxRetries = 5) => {
         }
       } finally {
         clearTimeout(timeoutId);
+        if (retries >= maxRetries && !success) {
+          continuationToken = null;
+          contentLimitState = null;
+        }
+      }
+
+      if (continuationToken) {
+        retries = 0;
+        continue;
       }
     }
 
@@ -466,11 +495,15 @@ function formatAuthorName(author) {
 }
 
 async function parseSingleBook(htmlId, htmlContent) {
-  let annotations = await new Promise((resolve) => {
+  let parsingResult = await new Promise((resolve) => {
     chrome.runtime.onMessage.addListener(function listener(request) {
       if (request.action === "PARSED_HTML") {
         chrome.runtime.onMessage.removeListener(listener);
-        resolve(request.data);
+        resolve({
+          annotations: request.data,
+          continuationToken: request.continuationToken,
+          contentLimitState: request.contentLimitState
+        });
       }
     });
 
@@ -482,8 +515,10 @@ async function parseSingleBook(htmlId, htmlContent) {
 
   const book = allBooks.find((book) => book.htmlId === htmlId);
   if (book) {
-    book.annotations = annotations;
+    book.annotations = [...(book.annotations || []), ...parsingResult.annotations];
+    return parsingResult;
   }
+  return null;
 }
 
 const uploadSingleBook = async (booksPassedIn) => {

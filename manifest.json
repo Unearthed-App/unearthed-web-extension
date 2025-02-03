@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Unearthed App",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Sync your Kindle quotes and notes",
   "permissions": ["cookies", "tabs", "storage"],
   "host_permissions": [
