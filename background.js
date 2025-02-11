@@ -17,49 +17,57 @@
 
 const domain = "https://unearthed.app";
 
+let API_KEY = "";
+
 let fetchInProgress = false;
 
 let allBooks = [];
 chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo, tab) {
   if (changeInfo.status === "complete") {
     setTimeout(function () {
-      checkLoginStatus();
+      chrome.storage.local.get(["API_KEY"], function (result) {
+        if (result.API_KEY) {
+          API_KEY = result.API_KEY;
+          // getMe();
+        }
+      });
+
       // Filter out non-webpage URLs like chrome://, edge://, about://, or new tab
       const url = tab.url;
       if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
-        if (fetchInProgress) {
-          console.log("Fetch already in progress");
-          return;
-        }
+        // if (fetchInProgress) {
+        //   console.log("Fetch already in progress");
+        //   return;
+        // }
 
-        console.log(`Tab ${tabId} is a webpage and is fully loaded.`);
-        const todaysDate = new Date().toISOString().slice(0, 10);
+        // console.log(`Tab ${tabId} is a webpage and is fully loaded.`);
+        // const todaysDate = new Date().toISOString().slice(0, 10);
 
-        chrome.cookies.get(
-          {
-            url: domain,
-            name: "lastUplaodToUnearthed",
-          },
-          function (cookie) {
-            if (!cookie || todaysDate != cookie.value) {
-              fetchInProgress = true;
-              fetchData(0, 3, null, [], true);
+        // chrome.cookies.get(
+        //   {
+        //     url: domain,
+        //     name: "lastUplaodToUnearthed",
+        //   },
+        //   function (cookie) {
+        //     if (!cookie || todaysDate != cookie.value) {
+        //       fetchInProgress = true;
+        //       fetchData(0, 3, null, [], true);
 
-              chrome.cookies.set(
-                {
-                  url: domain,
-                  name: "lastUplaodToUnearthed",
-                  value: todaysDate,
-                },
-                function (cookie) {
-                  console.log("Cookie set:", cookie);
-                }
-              );
-            } else {
-              console.log("Already got them today");
-            }
-          }
-        );
+        //       chrome.cookies.set(
+        //         {
+        //           url: domain,
+        //           name: "lastUplaodToUnearthed",
+        //           value: todaysDate,
+        //         },
+        //         function (cookie) {
+        //           console.log("Cookie set:", cookie);
+        //         }
+        //       );
+        //     } else {
+        //       console.log("Already got them today");
+        //     }
+        //   }
+        // );
       } else {
         console.log(
           `Script not injected as the tab ${tabId} is not a regular webpage.`
@@ -154,30 +162,39 @@ function sendGetBooksFailed() {
   });
 }
 
-async function checkLoginStatus() {
-  let data = {};
-  try {
-    const response = await fetch(`${domain}/api/me`, {
-      credentials: "include",
-    });
-    if (response.ok) {
-      data = await response.json();
-    } else {
-      data = {};
-    }
-  } catch (error) {
-    data = {};
-  }
+// async function getMe() {
+//   if (!API_KEY) {
+//     console.error("API_KEY is not defined. Unable to check login status.");
+//     return;
+//   }
 
-  chrome.storage.local.set({
-    isLoggedIn: !!data.userId,
-    isPremium: data.isPremium || false,
-  });
-}
+//   let data = {};
+//   try {
+//     const response = await fetch(`${domain}/api/public/me`, {
+//       credentials: "include",
+//       headers: {
+//         "Content-Type": "application/json",
+//         Authorization: `Bearer ${API_KEY}`,
+//       },
+//     });
+//     if (response.ok) {
+//       data = await response.json();
+//     } else {
+//       data = {};
+//     }
+//   } catch (error) {
+//     data = {};
+//   }
+
+//   chrome.storage.local.set({
+//     // isLoggedIn: !!data.userId,
+//     isPremium: data.isPremium || false,
+//   });
+// }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "GET_BOOKS") {
-    chrome.tabs.create({ url: domain, active: false });
+    // chrome.tabs.create({ url: domain, active: false });
 
     fetchData();
 
@@ -203,6 +220,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === "UPLOAD_BOOKS") {
     bookUploadProcess(request.books);
   } else if (request.action === "GET_EACH_BOOK") {
+    if (fetchInProgress) {
+      console.log("Fetch already in progress");
+      chrome.runtime.sendMessage({
+        action: "FETCH_IN_PROGRESS",
+      });
+      return;
+    }
     const allowedBookTitles = request.allowedBookTitles;
 
     allBooks = allBooks.filter((book) => {
@@ -220,6 +244,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 const bookUploadProcess = async (booksPassedIn) => {
+  if (!API_KEY) {
+    console.error("API_KEY is not defined. Unable to check login status.");
+    return;
+  }
+
   let updatedBooks = [];
 
   const booksToInsert = booksPassedIn.map((book) => ({
@@ -232,10 +261,11 @@ const bookUploadProcess = async (booksPassedIn) => {
   let errorOccured = false;
 
   try {
-    const response = await fetch(`${domain}/api/books-insert`, {
+    const response = await fetch(`${domain}/api/public/books-insert`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${API_KEY}`,
       },
       body: JSON.stringify(booksToInsert),
     });
@@ -291,10 +321,11 @@ const bookUploadProcess = async (booksPassedIn) => {
 
   for (let i = 0; i < quotesToInsertArray.length; i++) {
     try {
-      const response = await fetch(`${domain}/api/quotes-insert`, {
+      const response = await fetch(`${domain}/api/public/quotes-insert`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${API_KEY}`,
         },
         body: JSON.stringify(quotesToInsertArray[i]),
       });
@@ -502,7 +533,7 @@ async function parseSingleBook(htmlId, htmlContent) {
         resolve({
           annotations: request.data,
           continuationToken: request.continuationToken,
-          contentLimitState: request.contentLimitState
+          contentLimitState: request.contentLimitState,
         });
       }
     });
@@ -515,7 +546,10 @@ async function parseSingleBook(htmlId, htmlContent) {
 
   const book = allBooks.find((book) => book.htmlId === htmlId);
   if (book) {
-    book.annotations = [...(book.annotations || []), ...parsingResult.annotations];
+    book.annotations = [
+      ...(book.annotations || []),
+      ...parsingResult.annotations,
+    ];
     return parsingResult;
   }
   return null;

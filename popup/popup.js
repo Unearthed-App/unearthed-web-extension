@@ -58,6 +58,11 @@ document.addEventListener("DOMContentLoaded", function () {
   const deselectAll = document.getElementById("deselectAll");
   const selectAll = document.getElementById("selectAll");
 
+  const settingsButton = document.getElementById("settingsButton");
+  const apiKeyInput = document.getElementById("apiKeyInput");
+
+  let API_KEY = "";
+
   getBooksButton.addEventListener("click", () => {
     dailyReflectionDiv.style.display = "none";
     getBooksDiv.style.display = "none";
@@ -146,20 +151,55 @@ document.addEventListener("DOMContentLoaded", function () {
     );
   });
 
+  settingsButton.addEventListener("click", function () {
+    const settingsScreen = document.getElementById("settingsScreen");
+    settingsScreen.style.display =
+      settingsScreen.style.display === "block" ? "none" : "block";
+  });
+
+  apiKeyInput.addEventListener("input", function (event) {
+    const apiKey = event.target.value;
+    chrome.storage.local.set({ API_KEY: apiKey });
+  });
+
+  chrome.storage.local.get(["API_KEY"], function (result) {
+    if (result.API_KEY) {
+      apiKeyInput.value = result.API_KEY;
+      API_KEY = result.API_KEY;
+    }
+  });
+
   async function getDaily() {
     let data = {};
     try {
-      const response = await fetch(`${domain}/api/get-daily`, {
-        credentials: "include",
+      const response = await fetch(`${domain}/api/public/get-daily`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${API_KEY}`,
+        },
       });
+      console.log("response", response);
 
       if (response.ok) {
+        console.log("response ok");
         data = await response.json();
-        dailyReflection = data.dailyReflection;
+        console.log("data", data);
+
+        if (data.success) {
+          dailyReflection = data.data.dailyReflection;
+          isLoggedIn = true;
+        } else {
+          dailyReflection = null;
+          isLoggedIn = false;
+        }
+
+        updateUI();
       } else {
         data = {};
       }
     } catch (error) {
+      console.log("error", error);
+
       data = {};
     }
 
@@ -171,13 +211,23 @@ document.addEventListener("DOMContentLoaded", function () {
   function updateUI() {
     if (!isLoggedIn) {
       loadingDailyReflection.style.display = "block";
-      loadingDailyReflection.innerHTML = "Please login to Unearthed first.";
+
+      if (!API_KEY) {
+        loadingDailyReflection.innerHTML =
+          "Please put in your Unearthed API Key under Settings.";
+      } else {
+        loadingDailyReflection.innerHTML =
+          "Check that your Unearthed API key is correct here under Settings";
+      }
+
       getBooksDiv.style.display = "none";
+    } else {
+      getBooksDiv.style.display = "block";
     }
-    if (dailyReflection.book) {
+    if (dailyReflection.source) {
       loadingDailyReflection.style.display = "none";
-      dailyBookTitle.innerHTML = dailyReflection.book.title;
-      dailyBookAuthor.innerHTML = `by: ${dailyReflection.book.author}`;
+      dailyBookTitle.innerHTML = dailyReflection.source.title;
+      dailyBookAuthor.innerHTML = `by: ${dailyReflection.source.author}`;
       dailyQuoteContent.innerHTML = dailyReflection.quote.content;
 
       dailyBookNotesDiv.style.display =
@@ -189,10 +239,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
       dailyQuoteLocation.innerHTML = dailyReflection.quote.location;
 
-      dailyBookImg.style.display = dailyReflection.book.imageUrl
+      dailyBookImg.style.display = dailyReflection.source.imageUrl
         ? "block"
         : "none";
-      dailyBookImg.src = dailyReflection.book.imageUrl;
+      dailyBookImg.src = dailyReflection.source.imageUrl;
 
       dailyReflectionDiv.style.display = "block";
 
@@ -209,6 +259,8 @@ document.addEventListener("DOMContentLoaded", function () {
         colorLookup[getColorKey(dailyReflection.quote.color)].color;
     } else {
       loadingDailyReflection.style.display = "block";
+      loadingDailyReflection.innerHTML =
+        "No Daily Reflection found, you may need to sync some books first.";
     }
   }
 
@@ -252,44 +304,44 @@ document.addEventListener("DOMContentLoaded", function () {
     },
   };
 
-  chrome.storage.local.get(["isLoggedIn", "isPremium"], (result) => {
-    isLoggedIn = result.isLoggedIn || false;
-    isPremium = result.isPremium || false;
-    updateUI();
+  // chrome.storage.local.get(["isLoggedIn", "isPremium"], (result) => {
+  //   isLoggedIn = result.isLoggedIn || false;
+  //   isPremium = result.isPremium || false;
+  //   updateUI();
 
-    if (!isLoggedIn) {
-      chrome.tabs.create(
-        {
-          url: isPremium
-            ? `${domain}/premium/home`
-            : `${domain}/dashboard/home`,
-        },
-        function (tab) {
-          chrome.tabs.onUpdated.addListener(function listener(
-            tabId,
-            changeInfo
-          ) {
-            if (tabId === tab.id && changeInfo.status === "complete") {
-              chrome.tabs.onUpdated.removeListener(listener);
-            }
-          });
-        }
-      );
+  //   // if (!isLoggedIn) {
+  //   //   chrome.tabs.create(
+  //   //     {
+  //   //       url: isPremium
+  //   //         ? `${domain}/premium/home`
+  //   //         : `${domain}/dashboard/home`,
+  //   //     },
+  //   //     function (tab) {
+  //   //       chrome.tabs.onUpdated.addListener(function listener(
+  //   //         tabId,
+  //   //         changeInfo
+  //   //       ) {
+  //   //         if (tabId === tab.id && changeInfo.status === "complete") {
+  //   //           chrome.tabs.onUpdated.removeListener(listener);
+  //   //         }
+  //   //       });
+  //   //     }
+  //   //   );
 
-      setTimeout(() => {
-        if (isLoggedIn) {
-          chrome.tabs.query(
-            { active: true, currentWindow: true },
-            function (tabs) {
-              chrome.tabs.remove(tabs[0].id);
-            }
-          );
-        } else {
-          // window.close()
-        }
-      }, 1000);
-    }
-  });
+  //   //   setTimeout(() => {
+  //   //     if (isLoggedIn) {
+  //   //       chrome.tabs.query(
+  //   //         { active: true, currentWindow: true },
+  //   //         function (tabs) {
+  //   //           chrome.tabs.remove(tabs[0].id);
+  //   //         }
+  //   //       );
+  //   //     } else {
+  //   //       // window.close()
+  //   //     }
+  //   //   }, 1000);
+  //   // }
+  // });
 
   // Listen for changes in isLoggedIn and isPremium
   chrome.storage.onChanged.addListener((changes, namespace) => {
@@ -343,6 +395,9 @@ document.addEventListener("DOMContentLoaded", function () {
         getBooksInformation.innerText += `\nUploaded ${book.title}`;
       });
       sendResponse({ success: true, message: "BOOKS_UPLOAD_SUCCESS" });
+    } else if (request.action === "FETCH_IN_PROGRESS") {
+      getBooksInformation.innerText = "Fetch already in progress";
+      sendResponse({ success: true, message: "FETCH_IN_PROGRESS" });
     } else if (request.action === "NO_BOOKS_SELECTED") {
       getBooksInformation.innerText = "No books synced";
       sendResponse({ success: true, message: "NO_BOOKS_SELECTED" });
@@ -434,7 +489,12 @@ document.addEventListener("DOMContentLoaded", function () {
         });
       }
 
-      chrome.runtime.sendMessage({ action: "PARSED_HTML", data: annotations, continuationToken, contentLimitState });
+      chrome.runtime.sendMessage({
+        action: "PARSED_HTML",
+        data: annotations,
+        continuationToken,
+        contentLimitState,
+      });
     }
   });
 });
