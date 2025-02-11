@@ -3,8 +3,16 @@
   "name": "Unearthed App",
   "version": "1.2.1",
   "description": "Sync your Kindle quotes and notes",
-  "permissions": ["cookies", "tabs", "storage"],
+  "permissions": [
+    "cookies",
+    "tabs",
+    "storage",
+    "scripting",
+    "tabs",
+    "activeTab"
+  ],
   "host_permissions": [
+    "*://*/*",
     "https://unearthed.app/*",
     "https://read.amazon.com/*",
     "http://localhost:3000/*"
@@ -18,6 +26,12 @@
       "128": "icons/icon-128x128.png"
     }
   },
+  "content_scripts": [
+    {
+      "matches": ["*://*/*"],
+      "js": ["content.js"]
+    }
+  ],
   "icons": {
     "16": "icons/icon-16x16.png",
     "32": "icons/icon-32x32.png",
@@ -25,8 +39,7 @@
     "128": "icons/icon-128x128.png"
   },
   "background": {
-    "service_worker": "background.js",
-    "scripts": ["background.js"]
+    "service_worker": "background.js"
   },
   "browser_specific_settings": {
     "gecko": {

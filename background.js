@@ -35,48 +35,52 @@ chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo, tab) {
       // Filter out non-webpage URLs like chrome://, edge://, about://, or new tab
       const url = tab.url;
       if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
-        // if (fetchInProgress) {
-        //   console.log("Fetch already in progress");
-        //   return;
-        // }
+        chrome.scripting
+          .executeScript({
+            target: { tabId: tabId },
+            files: ["content.js"],
+          })
+          .catch((err) => console.log("Injection failed:", err));
 
-        // console.log(`Tab ${tabId} is a webpage and is fully loaded.`);
-        // const todaysDate = new Date().toISOString().slice(0, 10);
+        if (fetchInProgress) {
+          console.log("Fetch already in progress");
+          return;
+        }
 
-        // chrome.cookies.get(
-        //   {
-        //     url: domain,
-        //     name: "lastUplaodToUnearthed",
-        //   },
-        //   function (cookie) {
-        //     if (!cookie || todaysDate != cookie.value) {
-        //       fetchInProgress = true;
-        //       fetchData(0, 3, null, [], true);
+        console.log(`Tab ${tabId} is a webpage and is fully loaded.`);
+        const todaysDate = new Date().toISOString().slice(0, 10);
 
-        //       chrome.cookies.set(
-        //         {
-        //           url: domain,
-        //           name: "lastUplaodToUnearthed",
-        //           value: todaysDate,
-        //         },
-        //         function (cookie) {
-        //           console.log("Cookie set:", cookie);
-        //         }
-        //       );
-        //     } else {
-        //       console.log("Already got them today");
-        //     }
-        //   }
-        // );
-      } else {
-        console.log(
-          `Script not injected as the tab ${tabId} is not a regular webpage.`
+        chrome.cookies.get(
+          {
+            url: domain,
+            name: "lastUplaodToUnearthed",
+          },
+          function (cookie) {
+            if (!cookie || todaysDate != cookie.value) {
+              fetchInProgress = true;
+              fetchData(0, 3, null, [], true);
+
+              chrome.cookies.set(
+                {
+                  url: domain,
+                  name: "lastUplaodToUnearthed",
+                  value: todaysDate,
+                },
+                function (cookie) {
+                  console.log("Cookie set:", cookie);
+                }
+              );
+            } else {
+              console.log("Already got them today");
+            }
+          }
         );
+      } else {
+        `Script not injected as the tab ${tabId} is not a regular webpage.`;
       }
     }, 1000);
   }
 });
-
 async function fetchData(
   retries = 0,
   maxRetries = 3,
@@ -538,9 +542,13 @@ async function parseSingleBook(htmlId, htmlContent) {
       }
     });
 
-    chrome.runtime.sendMessage({
-      action: "PARSE_HTML",
-      html: htmlContent,
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]?.id) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+          action: "PARSE_HTML",
+          html: htmlContent,
+        });
+      }
     });
   });
 
