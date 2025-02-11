@@ -1,7 +1,7 @@
 {
   "name": "unearthed-extension",
   "version": "1.2.2",
-  "description": "Brwoser extension for the Unearthed App",
+  "description": "Browser extension for the Unearthed App",
   "scripts": {
     "build:tailwind": "tailwindcss -i ./src/tailwind.css -o ./popup/popup.css --minify",
     "build": "npm run build:tailwind && 7z a -r -x!*.git* -x!*.vscode* -x!package.json -x!node_modules/* -x!src/* ../unearthed-extension.zip *",
