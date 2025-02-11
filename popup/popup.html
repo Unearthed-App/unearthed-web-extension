@@ -141,6 +141,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>. -->
             <label for="apiKeyInput" class="block text-sm font-medium text-gray-700">API Key</label>
             <input type="text" id="apiKeyInput" class="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2" placeholder="Enter your API Key" />
           </div>
+          <div class="p-4 border-2 border-black rounded-lg bg-[hsl(337,68%,97%)] mt-2">
+            <label for="autoSyncCheckbox" class="block text-sm font-medium text-gray-700">Auto Sync Once Per Day</label>
+            <label for="autoSyncCheckbox" class="block text-xs font-light text-gray-700">Enable this if you want the extension to get books even if you do not open it. This could slow down your browser if you have a lot of books.
+            </label>
+            <input type="checkbox" id="autoSyncCheckbox" class="mt-1 block shadow-sm sm:text-sm border-gray-300 rounded-md p-2" />
+          </div>
         </div>
         <div class="settings-button-container text-center mt-2">
           <button id="settingsButton" class="bg-white inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent border-2 p-2.5 rounded-md transition-shadow duration-200 bg-card border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:shadow-[1px_1px_0px_rgba(0,0,0,1)] h-10 px-4 py-2 w-full" type="button">Settings</button>

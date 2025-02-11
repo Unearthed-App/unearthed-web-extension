@@ -18,6 +18,7 @@
 const domain = "https://unearthed.app";
 
 let API_KEY = "";
+let AUTO_SYNC = false;
 
 let fetchInProgress = false;
 
@@ -25,11 +26,15 @@ let allBooks = [];
 chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo, tab) {
   if (changeInfo.status === "complete") {
     setTimeout(function () {
-      chrome.storage.local.get(["API_KEY"], function (result) {
+      chrome.storage.local.get(["API_KEY", "AUTO_SYNC"], function (result) {
         if (result.API_KEY) {
           API_KEY = result.API_KEY;
-          // getMe();
         }
+        AUTO_SYNC =
+          result.AUTO_SYNC === undefined || result.AUTO_SYNC === null
+            ? false
+            : result.AUTO_SYNC;
+        // getMe();
       });
 
       // Filter out non-webpage URLs like chrome://, edge://, about://, or new tab
@@ -56,6 +61,9 @@ chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo, tab) {
             name: "lastUplaodToUnearthed",
           },
           function (cookie) {
+            if (!AUTO_SYNC) {
+              return;
+            }
             if (!cookie || todaysDate != cookie.value) {
               fetchInProgress = true;
               fetchData(0, 3, null, [], true);

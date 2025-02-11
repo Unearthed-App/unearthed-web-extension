@@ -841,6 +841,10 @@ video {
   font-weight: 600;
 }
 
+.font-light {
+  font-weight: 300;
+}
+
 .text-\[hsl\(175\2c 60\%\2c 20\%\)\] {
   --tw-text-opacity: 1;
   color: hsl(175 60% 20% / var(--tw-text-opacity));

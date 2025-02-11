@@ -60,7 +60,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const settingsButton = document.getElementById("settingsButton");
   const apiKeyInput = document.getElementById("apiKeyInput");
-
+  const autoSyncCheckbox = document.getElementById("autoSyncCheckbox");
+  
   let API_KEY = "";
 
   getBooksButton.addEventListener("click", () => {
@@ -166,6 +167,17 @@ document.addEventListener("DOMContentLoaded", function () {
     if (result.API_KEY) {
       apiKeyInput.value = result.API_KEY;
       API_KEY = result.API_KEY;
+    }
+  });
+
+  autoSyncCheckbox.addEventListener("change", function (event) {
+    const autoSync = autoSyncCheckbox.checked;
+    chrome.storage.local.set({ AUTO_SYNC: autoSync });
+  });
+
+  chrome.storage.local.get(["AUTO_SYNC"], function (result) {
+    if (result.AUTO_SYNC !== undefined) {
+      document.getElementById("autoSyncCheckbox").checked = result.AUTO_SYNC;
     }
   });
 
