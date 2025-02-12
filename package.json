@@ -1,17 +1,46 @@
 {
-  "name": "unearthed-extension",
-  "version": "1.2.2",
-  "description": "Browser extension for the Unearthed App",
+  "name": "unearthed-web-extension",
+  "displayName": "Unearthed App",
+  "version": "1.3.1",
+  "description": "Sync your Kindle quotes and notes",
+  "author": "Unearthed.app",
   "scripts": {
-    "build:tailwind": "tailwindcss -i ./src/tailwind.css -o ./popup/popup.css --minify",
-    "build": "npm run build:tailwind && 7z a -r -x!*.git* -x!*.vscode* -x!package.json -x!node_modules/* -x!src/* ../unearthed-extension.zip *",
-    "build:firefox": "npm run build:tailwind && zip -r -FS ../unearthed-extension-firefox.zip * --exclude '*.git*' '*.vscode*' 'package.json' 'node_modules/*' 'src/*'",
-    "watch:tailwind": "tailwindcss -i ./src/tailwind.css -o ./popup/popup.css --watch"
+    "dev": "plasmo dev",
+    "build-chrome": "plasmo build --zip",
+    "build-firefox-v2": "plasmo build --target=firefox-mv2 && plasmo build --target=firefox-mv2 --zip",
+    "build-firefox-v3": "plasmo build --target=firefox-mv3 && plasmo build --target=firefox-mv3 --zip",
+    "package": "plasmo package"
   },
-  "author": "",
-  "license": "ISC",
+  "dependencies": {
+    "@plasmohq/messaging": "^0.7.1",
+    "@plasmohq/storage": "^1.15.0",
+    "parse5": "^7.2.1",
+    "plasmo": "0.90.2",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
   "devDependencies": {
-    "archiver": "^7.0.1",
-    "tailwindcss": "^3.3.3"
+    "@ianvs/prettier-plugin-sort-imports": "4.1.1",
+    "@types/chrome": "0.0.258",
+    "@types/node": "20.11.5",
+    "@types/react": "18.2.48",
+    "@types/react-dom": "18.2.18",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.2",
+    "prettier": "3.2.4",
+    "tailwindcss": "3",
+    "typescript": "5.3.3"
+  },
+  "manifest": {
+    "host_permissions": [
+      "https://unearthed.app/*",
+      "https://read.amazon.com/*",
+      "http://localhost:3000/*"
+    ],
+    "browser_specific_settings": {
+      "gecko": {
+        "id": "unearthed-app@unearthed.app"
+      }
+    }
   }
 }
