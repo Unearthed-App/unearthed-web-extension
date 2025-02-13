@@ -1,12 +1,24 @@
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react";
 
-import { Storage } from "@plasmohq/storage"
 
-import "./style.css"
 
-// import { sendToBackground } from "@plasmohq/messaging"
+import { Storage } from "@plasmohq/storage";
 
-// const domain = "https://unearthed.app"
+
+
+
+
+
+import "./style.css";
+
+
+
+// import { sendToBackground } from "@plasmohq/messaging";
+
+
+
+
+
 const domain = "https://unearthed.app"
 
 const colorLookup = {
@@ -44,6 +56,7 @@ function IndexPopup() {
   const [canConnect, setCanConnect] = useState(false)
 
   const [API_KEY, setAPI_KEY] = useState("")
+  const [autoSync, setAutoSync] = useState(false)
   const [loadingDailyReflectionVisible, setLoadingDailyReflectionVisible] =
     useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -61,6 +74,16 @@ function IndexPopup() {
       const storedApiKey = await storage.get("API_KEY")
       if (storedApiKey) {
         setAPI_KEY(storedApiKey)
+      }
+    }
+    loadApiKey()
+  }, [])
+
+  useEffect(() => {
+    const loadApiKey = async () => {
+      const storedAutoSync = await storage.get("autoSync")
+      if (storedAutoSync) {
+        setAutoSync(storedAutoSync)
       }
     }
     loadApiKey()
@@ -153,10 +176,8 @@ function IndexPopup() {
   const getDailyReflection = async () => {
     setLoadingDailyReflectionVisible(true)
 
-    console.log("Getting daily reflection...")
     let data = {}
     try {
-      console.log("SEC", secret)
 
       let newSecret = ""
 
@@ -169,16 +190,13 @@ function IndexPopup() {
             Authorization: `Bearer ${API_KEY}`
           }
         })
-        console.log(connectResults)
 
         const connectData = await connectResults.json()
-        console.log("connectData", connectData)
 
         newSecret = connectData.data.secret
         setSecret(connectData.data.secret)
         storage.set("secret", connectData.data.secret)
       }
-      console.log(`Bearer ${API_KEY}~~~${secret}`)
 
       const response = await fetch(`${domain}/api/public/daily-reflection`, {
         headers: {
@@ -189,7 +207,6 @@ function IndexPopup() {
 
       if (response.ok) {
         data = await response.json()
-        console.log("DAILY", data)
 
         if (data.success) {
           setDailyReflection(data.data.dailyReflection)
@@ -273,11 +290,6 @@ function IndexPopup() {
       .join("\n")
   }, [])
 
-  const sendGetBooksFailed = useCallback(() => {
-    setLoginToKindleDivVisible(true)
-    console.log("getting books failed")
-  }, [])
-
   const fetchData = useCallback(
     async (
       retries = 0,
@@ -334,7 +346,7 @@ function IndexPopup() {
             )
           } else {
             console.log("Max retries reached. Aborting.")
-            sendGetBooksFailed()
+            setLoginToKindleDivVisible(true)
           }
         }
       } catch (error) {
@@ -349,11 +361,11 @@ function IndexPopup() {
           )
         } else {
           console.log("Max retries reached. Aborting.")
-          sendGetBooksFailed()
+          setLoginToKindleDivVisible(true)
         }
       }
     },
-    [parseBooks, sendGetBooksFailed]
+    [parseBooks]
   )
 
   const bookUploadProcess = useCallback(
@@ -564,7 +576,20 @@ function IndexPopup() {
             if (!response.ok) throw new Error(`HTTP ${response.status}`)
 
             const html = await response.text()
+
             const result = await parseSingleBook(book.htmlId, html)
+            // const resp = await sendToBackground({
+            //   name: "ping",
+            //   body: {
+            //     command: "parseSingleBook",
+            //     htmlId: book.htmlId,
+            //     htmlContent: html
+            //   }
+            // })
+
+            // const result = resp.parsedBook
+
+            // console.log("POPUP received resp", resp)
 
             if (result) {
               continuationToken = result.continuationToken
@@ -666,17 +691,13 @@ function IndexPopup() {
       allBooks,
       bookUploadProcess,
       getBooksInformationText,
-      parseSingleBook,
       setGetBooksInformationText
     ]
   )
 
-  const uploadSingleBook = useCallback(
-    async (bookPassedIn) => {
-      return await bookUploadProcess([bookPassedIn])
-    },
-    [bookUploadProcess]
-  )
+  const uploadSingleBook = async (bookPassedIn) => {
+    return await bookUploadProcess([bookPassedIn])
+  }
 
   const handleDeselectAllClick = () => {
     setCheckedBookTitles([])
@@ -738,15 +759,6 @@ function IndexPopup() {
   }
 
   const handleSettingsButtonClick = () => {
-    // sendToBackground({
-    //   name: "ping",
-    //   body: {
-    //     id: 123
-    //   }
-    // }).then((resp) => {
-    //   console.log('POPUP received resp', resp)
-    // })
-
     setSettingsScreenVisible(!settingsScreenVisible)
   }
 
@@ -758,6 +770,12 @@ function IndexPopup() {
     setSecret("")
     storage.set("secret", "")
   }
+
+  const handleAutoSyncChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAutoSync(e.target.checked)
+    storage.set("autoSync", e.target.checked)
+  }
+
 
   return (
     <div className="p-2 bg-[hsl(10,100%,93%)] w-[450px]">
@@ -1007,20 +1025,45 @@ function IndexPopup() {
         )}
         {settingsScreenVisible && (
           <div>
-            <div className="p-4 border-2 border-black rounded-lg bg-[hsl(337,68%,97%)] mt-2">
-              <label className="block text-sm font-medium text-gray-700">
-                API Key
-              </label>
-              <label className="block text-xs font-light text-gray-700">
-                Create one in the settings on unearthed.app
-              </label>
-              <input
-                type="text"
-                className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2"
-                placeholder="Enter your API Key"
-                value={API_KEY}
-                onChange={handleApiKeyInputChange}
-              />
+            <div className="p-4 border-2 border-black rounded-lg bg-[hsl(337,68%,97%)] mt-4">
+              <div className="mb-2">
+                <label
+                  htmlFor="apiKey"
+                  className="block text-sm font-medium text-gray-700">
+                  API Key
+                </label>
+                <label
+                  htmlFor="apiKey"
+                  className="block text-xs font-light text-gray-700">
+                  Create one in the settings on unearthed.app
+                </label>
+                <input
+                  type="text"
+                  id="apiKey" // Added id to match htmlFor for accessibility
+                  className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2"
+                  placeholder="Enter your API Key"
+                  value={API_KEY}
+                  onChange={handleApiKeyInputChange}
+                />
+              </div>
+
+              <div className="mt-4">
+                <label
+                  htmlFor="autoSync"
+                  className="block text-sm font-medium text-gray-700"></label>
+                <label
+                  htmlFor="autoSync"
+                  className="block text-xs font-light text-gray-700">
+                  Sync books automatically in the background. This will happen once per day (even if you do not open the extension)
+                </label>
+                <input
+                  type="checkbox"
+                  id="autoSync"
+                  className="mt-1 block shadow-sm sm:text-sm border-gray-300 rounded-md"
+                  checked={autoSync}
+                  onChange={handleAutoSyncChange}
+                />
+              </div>
             </div>
           </div>
         )}

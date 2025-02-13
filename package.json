@@ -14,7 +14,9 @@
   "dependencies": {
     "@plasmohq/messaging": "^0.7.1",
     "@plasmohq/storage": "^1.15.0",
-    "parse5": "^7.2.1",
+    "css-select": "^5.1.0",
+    "parse5": "6",
+    "parse5-htmlparser2-tree-adapter": "6",
     "plasmo": "0.90.2",
     "react": "18.2.0",
     "react-dom": "18.2.0"
