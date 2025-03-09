@@ -12,48 +12,48 @@ import { Storage } from "@plasmohq/storage";
 
 
 
-const parse5 = require("parse5")
-const cssSelect = require("css-select")
-const htmlparser2Adapter = require("parse5-htmlparser2-tree-adapter")
-
+const parse5 = require("parse5");
+const cssSelect = require("css-select");
+const htmlparser2Adapter = require("parse5-htmlparser2-tree-adapter");
 
 chrome.tabs.onUpdated.addListener(
   async function listener(tabId, changeInfo, tab) {
     if (changeInfo.status === "complete") {
-            
-      startHub()
-      const storage = new Storage()
+      startHub();
+      const storage = new Storage();
 
-      const domain = "https://unearthed.app"
+      const domain = "https://unearthed.app";
 
-      const gotDate = await storage.get("gotDate")
+      const gotDate = await storage.get("gotDate");
+      const storedKindleURL = await storage.get("kindleURL");
+      const kindleURL = storedKindleURL || "read.amazon.com";
 
-      const storedAutoSync = await storage.get("autoSync")
-      const autoSync = storedAutoSync
+      const storedAutoSync = await storage.get("autoSync");
+      const autoSync = storedAutoSync;
 
-      const storedApiKey = await storage.get("API_KEY")
-      const API_KEY = storedApiKey
-      const storedSecret = await storage.get("secret")
-      let secret = storedSecret
-      let allBooks = []
+      const storedApiKey = await storage.get("API_KEY");
+      const API_KEY = storedApiKey;
+      const storedSecret = await storage.get("secret");
+      let secret = storedSecret;
+      let allBooks = [];
 
-      const today = new Date().toISOString().split("T")[0]
+      const today = new Date().toISOString().split("T")[0];
 
       if (gotDate == today || !API_KEY) {
-        return
+        return;
       }
-      storage.set("gotDate", today)
+      storage.set("gotDate", today);
 
       const bookUploadProcess = async (booksPassedIn) => {
-        let updatedBooks = []
+        let updatedBooks = [];
         const booksToInsert = booksPassedIn.map((book) => ({
           title: book.title,
           subtitle: book.subtitle,
           author: book.author,
           imageUrl: book.imageUrl,
           asin: book.asin
-        }))
-        let errorOccured = false
+        }));
+        let errorOccured = false;
 
         try {
           const response = await fetch(`${domain}/api/public/books-insert`, {
@@ -63,44 +63,44 @@ chrome.tabs.onUpdated.addListener(
               Authorization: `Bearer ${API_KEY}~~~${secret}`
             },
             body: JSON.stringify(booksToInsert)
-          })
+          });
 
           if (!response.ok) {
-            throw new Error("Error inserting")
+            throw new Error("Error inserting");
           }
-          const data = await response.json()
+          const data = await response.json();
 
           const updatedBooksFromInserted = booksPassedIn
             .map((book) => {
               const matchingRecord = data.insertedRecords.find(
                 (record) => record.title === book.title
-              )
+              );
               if (matchingRecord) {
-                return { ...book, id: matchingRecord.id }
+                return { ...book, id: matchingRecord.id };
               }
-              return null
+              return null;
             })
-            .filter((book) => book !== null)
+            .filter((book) => book !== null);
 
           const updatedBooksFromExisting = booksPassedIn
             .map((book) => {
               const matchingRecord = data.existingRecords.find(
                 (record) => record.title === book.title
-              )
+              );
               if (matchingRecord) {
-                return { ...book, id: matchingRecord.id }
+                return { ...book, id: matchingRecord.id };
               }
-              return null
+              return null;
             })
-            .filter((book) => book !== null)
+            .filter((book) => book !== null);
 
           updatedBooks = [
             ...updatedBooksFromInserted,
             ...updatedBooksFromExisting
-          ]
+          ];
         } catch (error) {
-          errorOccured = true
-          console.error(error)
+          errorOccured = true;
+          console.error(error);
         }
 
         const quotesToInsertArray = updatedBooks
@@ -113,9 +113,9 @@ chrome.tabs.onUpdated.addListener(
               location: annotation.location
             }))
           )
-          .filter((x) => x !== undefined)
+          .filter((x) => x !== undefined);
 
-        const failedIndexes = []
+        const failedIndexes = [];
 
         for (let i = 0; i < quotesToInsertArray.length; i++) {
           try {
@@ -129,9 +129,9 @@ chrome.tabs.onUpdated.addListener(
             })
 
             if (!response.ok) {
-              throw new Error(`Error inserting quote at index ${i}`)
+              throw new Error(`Error inserting quote at index ${i}`);
             }
-            await response.json()
+            await response.json();
           } catch (error) {
             errorOccured = true
             console.error(`Failed to insert quote at index ${i}:`, error)
@@ -215,7 +215,7 @@ chrome.tabs.onUpdated.addListener(
       }
 
       const getEachBook = async (booksToProcess, maxRetries = 1) => {
-        const retryDelays = [1000, 2000, 4000, 8000, 16000]
+        const retryDelays = [1000, 2000, 4000, 8000, 16000];
 
         for (let book of booksToProcess) {
           let retries = 0
@@ -228,11 +228,11 @@ chrome.tabs.onUpdated.addListener(
             const timeoutId = setTimeout(() => controller.abort(), 10000)
 
             try {
-              let urlToFetch
+              let urlToFetch;
               if (!continuationToken) {
-                urlToFetch = `https://read.amazon.com/notebook?asin=${book.htmlId}&contentLimitState=&`
+                urlToFetch = `https://${kindleURL}/notebook?asin=${book.htmlId}&contentLimitState=&`
               } else {
-                urlToFetch = `https://read.amazon.com/notebook?asin=${
+                urlToFetch = `https://${kindleURL}/notebook?asin=${
                   book.htmlId
                 }&token=${encodeURIComponent(
                   continuationToken
@@ -260,9 +260,9 @@ chrome.tabs.onUpdated.addListener(
               if (response.status === 429) {
                 const retryAfter =
                   response.headers.get("Retry-After") ||
-                  Math.min(30, retryDelays[retries] + Math.random() * 1000)
-                console.log(`Rate limited. Waiting ${Math.round(retryAfter)}ms`)
-                await new Promise((resolve) => setTimeout(resolve, retryAfter))
+                  Math.min(30, retryDelays[retries] + Math.random() * 1000);
+                console.log(`Rate limited. Waiting ${Number(retryAfter)}ms`)
+                await new Promise((resolve) => setTimeout(resolve, Number(retryAfter)));
                 continue
               }
 
@@ -302,17 +302,17 @@ chrome.tabs.onUpdated.addListener(
                 error.message
               )
               if (++retries < maxRetries) {
-                const delay = retryDelays[retries - 1] + Math.random() * 1000
-                console.log(`Waiting ${Math.round(delay)}ms before retry...`)
-                await new Promise((resolve) => setTimeout(resolve, delay))
+                const delay = retryDelays[retries - 1] + Math.random() * 1000;
+                console.log(`Waiting ${Math.round(delay)}ms before retry...`);
+                await new Promise((resolve) => setTimeout(resolve, Number(delay)));
               }
-            } finally {
-              clearTimeout(timeoutId)
+             } finally {
+              clearTimeout(timeoutId);
               if (retries >= maxRetries && !success) {
-                continuationToken = null
-                contentLimitState = null
+                continuationToken = null;
+                contentLimitState = null;
               }
-            }
+             }
 
             if (continuationToken) {
               retries = 0
@@ -406,10 +406,9 @@ chrome.tabs.onUpdated.addListener(
         paginationToken = null,
         accumulatedItems = []
       ) => {
-        let urlToFetch =
-          "https://read.amazon.com/kindle-library/search?libraryType=BOOKS&sortType=recency&querySize=50"
+        let urlToFetch = `https://${kindleURL}/kindle-library/search?libraryType=BOOKS&sortType=recency&querySize=50`
         if (paginationToken) {
-          urlToFetch += `&paginationToken=${paginationToken}`
+          urlToFetch += `&paginationToken=${paginationToken}`;
         }
 
         try {
@@ -423,7 +422,7 @@ chrome.tabs.onUpdated.addListener(
               "Sec-Fetch-Site": "same-origin",
               Priority: "u=4"
             },
-            referrer: "https://read.amazon.com/kindle-library",
+            referrer: `https://${kindleURL}/kindle-library`,
             method: "GET",
             mode: "cors"
           })

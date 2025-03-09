@@ -13,11 +13,9 @@ import "./style.css";
 
 
 
+
+
 // import { sendToBackground } from "@plasmohq/messaging";
-
-
-
-
 
 const domain = "https://unearthed.app"
 
@@ -49,14 +47,29 @@ const colorLookup = {
   }
 }
 
+interface DailyReflection {
+  source?: {
+    title: string
+    author: string
+    imageUrl: string
+  }
+  quote?: {
+    content: string
+    note: string
+    color: string
+    location: string
+  }
+}
+
 function IndexPopup() {
   const storage = new Storage()
 
-  const [dailyReflection, setDailyReflection] = useState({})
+  const [dailyReflection, setDailyReflection] = useState<DailyReflection>({})
   const [canConnect, setCanConnect] = useState(false)
 
   const [API_KEY, setAPI_KEY] = useState("")
   const [autoSync, setAutoSync] = useState(false)
+  const [kindleURL, setKindleURL] = useState("read.amazon.com")
   const [loadingDailyReflectionVisible, setLoadingDailyReflectionVisible] =
     useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -80,13 +93,23 @@ function IndexPopup() {
   }, [])
 
   useEffect(() => {
-    const loadApiKey = async () => {
+    const loadAutoSync = async () => {
       const storedAutoSync = await storage.get("autoSync")
-      if (storedAutoSync) {
+      if (typeof storedAutoSync === "boolean") {
         setAutoSync(storedAutoSync)
       }
     }
-    loadApiKey()
+    loadAutoSync()
+  }, [])
+
+  useEffect(() => {
+    const loadKindleURL = async () => {
+      const storedKindleURL = await storage.get("kindleURL")
+      if (storedKindleURL) {
+        setKindleURL(storedKindleURL)
+      }
+    }
+    loadKindleURL()
   }, [])
 
   useEffect(() => {
@@ -177,8 +200,8 @@ function IndexPopup() {
     setLoadingDailyReflectionVisible(true)
 
     let data = {}
-    try {
 
+    try {
       let newSecret = ""
 
       // first see if they're logged in in the browser
@@ -206,13 +229,13 @@ function IndexPopup() {
       })
 
       if (response.ok) {
-        data = await response.json()
+        const responseData = await response.json()
 
-        if (data.success) {
-          setDailyReflection(data.data.dailyReflection)
+        if (responseData.success) {
+          setDailyReflection(responseData.data.dailyReflection)
           setCanConnect(true)
         } else {
-          setDailyReflection(null)
+          setDailyReflection({})
           setCanConnect(false)
         }
       } else {
@@ -297,8 +320,8 @@ function IndexPopup() {
       paginationToken = null,
       accumulatedItems = []
     ) => {
-      let urlToFetch =
-        "https://read.amazon.com/kindle-library/search?libraryType=BOOKS&sortType=recency&querySize=50"
+
+      let urlToFetch = `https://${kindleURL}/kindle-library/search?libraryType=BOOKS&sortType=recency&querySize=50`
       if (paginationToken) {
         urlToFetch += `&paginationToken=${paginationToken}`
       }
@@ -314,7 +337,7 @@ function IndexPopup() {
             "Sec-Fetch-Site": "same-origin",
             Priority: "u=4"
           },
-          referrer: "https://read.amazon.com/kindle-library",
+          referrer: `https://${kindleURL}/kindle-library`,
           method: "GET",
           mode: "cors"
         })
@@ -365,7 +388,7 @@ function IndexPopup() {
         }
       }
     },
-    [parseBooks]
+    [kindleURL, parseBooks]
   )
 
   const bookUploadProcess = useCallback(
@@ -468,57 +491,71 @@ function IndexPopup() {
     [API_KEY]
   )
 
-  const parseSingleBook = useCallback(async (htmlId, htmlContent) => {
-    return await new Promise((resolve) => {
-      const parser = new DOMParser()
-      const doc = parser.parseFromString(htmlContent, "text/html")
+  const parseSingleBook = useCallback(
+    async (htmlContent: string): Promise<ParseSingleBookResult> => {
+      return await new Promise((resolve) => {
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(htmlContent, "text/html")
 
-      const continuationTokenInput = doc.querySelector(
-        ".kp-notebook-annotations-next-page-start"
-      )
-      const continuationToken = continuationTokenInput
-        ? continuationTokenInput.value
-        : null
+        const continuationTokenInput = doc.querySelector(
+          ".kp-notebook-annotations-next-page-start" // this is an input
+        )
+        const continuationToken = continuationTokenInput
+          ? (continuationTokenInput as HTMLInputElement).value
+          : null
 
-      const contentLimitStateInput = doc.querySelector(
-        ".kp-notebook-content-limit-state"
-      )
-      const contentLimitState = contentLimitStateInput
-        ? contentLimitStateInput.value
-        : null
+        const contentLimitStateInput = doc.querySelector(
+          ".kp-notebook-content-limit-state"
+        )
+        const contentLimitState = contentLimitStateInput
+          ? (contentLimitStateInput as HTMLInputElement).value
+          : null
 
-      const annotations = []
+        const annotations = []
 
-      const quotes = doc.querySelectorAll("#highlight")
-      const note = doc.querySelectorAll("#note")
-      const colorsAndLocations = doc.querySelectorAll(
-        "#annotationHighlightHeader"
-      )
+        const quotes = doc.querySelectorAll("#highlight")
+        const note = doc.querySelectorAll("#note")
+        const colorsAndLocations = doc.querySelectorAll(
+          "#annotationHighlightHeader"
+        )
 
-      const length = Math.min(
-        quotes.length,
-        note.length,
-        colorsAndLocations.length
-      )
+        const length = Math.min(
+          quotes.length,
+          note.length,
+          colorsAndLocations.length
+        )
 
-      for (let i = 0; i < length; i++) {
-        annotations.push({
-          quote: quotes[i].textContent?.trim() || "",
-          note: note[i].textContent?.trim() || "",
-          color:
-            colorsAndLocations[i].textContent?.trim().split(" | ")[0] || "",
-          location:
-            colorsAndLocations[i].textContent?.trim().split(" | ")[1] || ""
+        for (let i = 0; i < length; i++) {
+          annotations.push({
+            quote: quotes[i].textContent?.trim() || "",
+            note: note[i].textContent?.trim() || "",
+            color:
+              colorsAndLocations[i].textContent?.trim().split(" | ")[0] || "",
+            location:
+              colorsAndLocations[i].textContent?.trim().split(" | ")[1] || ""
+          })
+        }
+
+        resolve({
+          annotations: annotations,
+          continuationToken: continuationToken,
+          contentLimitState: contentLimitState
         })
-      }
-
-      resolve({
-        annotations: annotations,
-        continuationToken: continuationToken,
-        contentLimitState: contentLimitState
       })
-    })
-  }, [])
+    },
+    []
+  )
+
+  interface ParseSingleBookResult {
+    annotations: {
+      quote: string
+      note: string
+      color: string
+      location: string
+    }[]
+    continuationToken: string | null
+    contentLimitState: string | null
+  }
 
   const getEachBook = useCallback(
     async (booksToProcess, maxRetries = 5) => {
@@ -537,9 +574,9 @@ function IndexPopup() {
           try {
             let urlToFetch
             if (!continuationToken) {
-              urlToFetch = `https://read.amazon.com/notebook?asin=${book.htmlId}&contentLimitState=&`
+              urlToFetch = `https://${kindleURL}/notebook?asin=${book.htmlId}&contentLimitState=&`
             } else {
-              urlToFetch = `https://read.amazon.com/notebook?asin=${
+              urlToFetch = `https://${kindleURL}/notebook?asin=${
                 book.htmlId
               }&token=${encodeURIComponent(
                 continuationToken
@@ -568,8 +605,10 @@ function IndexPopup() {
               const retryAfter =
                 response.headers.get("Retry-After") ||
                 Math.min(30, retryDelays[retries] + Math.random() * 1000)
-              console.log(`Rate limited. Waiting ${Math.round(retryAfter)}ms`)
-              await new Promise((resolve) => setTimeout(resolve, retryAfter))
+              console.log(`Rate limited. Waiting ${Number(retryAfter)}ms`)
+              await new Promise((resolve) =>
+                setTimeout(resolve, Number(retryAfter))
+              )
               continue
             }
 
@@ -577,19 +616,9 @@ function IndexPopup() {
 
             const html = await response.text()
 
-            const result = await parseSingleBook(book.htmlId, html)
-            // const resp = await sendToBackground({
-            //   name: "ping",
-            //   body: {
-            //     command: "parseSingleBook",
-            //     htmlId: book.htmlId,
-            //     htmlContent: html
-            //   }
-            // })
-
-            // const result = resp.parsedBook
-
-            // console.log("POPUP received resp", resp)
+            const result: ParseSingleBookResult = await parseSingleBook(
+              html
+            )
 
             if (result) {
               continuationToken = result.continuationToken
@@ -626,7 +655,7 @@ function IndexPopup() {
             if (++retries < maxRetries) {
               const delay = retryDelays[retries - 1] + Math.random() * 1000
               console.log(`Waiting ${Math.round(delay)}ms before retry...`)
-              await new Promise((resolve) => setTimeout(resolve, delay))
+              await new Promise((resolve) => setTimeout(resolve, Number(delay)))
             }
           } finally {
             clearTimeout(timeoutId)
@@ -755,7 +784,7 @@ function IndexPopup() {
   }
 
   const handleLoginToKindleClick = () => {
-    window.open(`https://read.amazon.com/notebook`, "_blank")
+    window.open(`https://${kindleURL}/notebook`, "_blank")
   }
 
   const handleSettingsButtonClick = () => {
@@ -772,10 +801,17 @@ function IndexPopup() {
   }
 
   const handleAutoSyncChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAutoSync(e.target.checked)
-    storage.set("autoSync", e.target.checked)
+    setAutoSync((e.target as HTMLInputElement).checked)
+    storage.set("autoSync", (e.target as HTMLInputElement).checked)
   }
 
+  const handleKindleURLInputChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const newKindleURL = (e.target as HTMLInputElement).value
+    setKindleURL(newKindleURL)
+    storage.set("kindleURL", newKindleURL)
+  }
 
   return (
     <div className="p-2 bg-[hsl(10,100%,93%)] w-[450px]">
@@ -785,13 +821,13 @@ function IndexPopup() {
       />
       <style>
         {`
-              body {
-                  font-family: 'Poppins', sans-serif;
-              }
-              h2 {
-                  font-family: 'Crimson Pro', serif;
-              }
-          `}
+          body {
+              font-family: 'Poppins', sans-serif;
+          }
+          h2 {
+              font-family: 'Crimson Pro', serif;
+          }
+        `}
       </style>
       <div className="container bg-[hsl(10,100%,93%)]">
         {loadingDailyReflectionVisible && (
@@ -1008,7 +1044,7 @@ function IndexPopup() {
           <div className="mt-2 text-center">
             <div className="p-4 border-2 border-black rounded-lg bg-[hsl(337,68%,97%)]">
               <p className="text-xs text-red-600 mb-2 font-bold">
-                Please login in to read.amazon.com/notebook by clicking the
+                Please login in to https://{kindleURL}/notebook by clicking the
                 button below.
                 <br />
                 After you login, open the extension and try the 'Get Kindle
@@ -1018,7 +1054,7 @@ function IndexPopup() {
                 className="bg-red-400 inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent border-2 p-2.5 rounded-md transition-shadow duration-200 bg-card border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:shadow-[1px_1px_0px_rgba(0,0,0,1)]  h-10 px-4 py-2 w-full"
                 type="button"
                 onClick={handleLoginToKindleClick}>
-                Login to read.amazon.com
+                Login to https://{kindleURL}
               </button>
             </div>
           </div>
@@ -1046,6 +1082,28 @@ function IndexPopup() {
                   onChange={handleApiKeyInputChange}
                 />
               </div>
+              <div className="mb-2">
+                <label
+                  htmlFor="kindleURL"
+                  className="block text-sm font-medium text-gray-700">
+                  Kindle URL
+                </label>
+                <label
+                  htmlFor="kindleURL"
+                  className="block text-xs font-light text-gray-700">
+                  Change this if you are in a different country
+                  <br />
+                  Default is (read.amazon.com)
+                </label>
+                <input
+                  type="text"
+                  id="kindleURL"
+                  className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2"
+                  placeholder="Enter your Kindle URL"
+                  value={kindleURL}
+                  onChange={handleKindleURLInputChange}
+                />
+              </div>
 
               <div className="mt-4">
                 <label
@@ -1054,7 +1112,8 @@ function IndexPopup() {
                 <label
                   htmlFor="autoSync"
                   className="block text-xs font-light text-gray-700">
-                  Sync books automatically in the background. This will happen once per day (even if you do not open the extension)
+                  Sync books automatically in the background. This will happen
+                  once per day (even if you do not open the extension)
                 </label>
                 <input
                   type="checkbox"
