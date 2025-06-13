@@ -12,126 +12,163 @@ import { Storage } from "@plasmohq/storage";
 
 
 
-const parse5 = require("parse5");
-const cssSelect = require("css-select");
-const htmlparser2Adapter = require("parse5-htmlparser2-tree-adapter");
+const parse5 = require("parse5")
+const cssSelect = require("css-select")
+const htmlparser2Adapter = require("parse5-htmlparser2-tree-adapter")
+
+// Utility function to sanitize text and handle problematic characters
+const sanitizeText = (text: string): string => {
+  if (!text || typeof text !== "string") return ""
+
+  return (
+    text
+      // Normalize unicode characters
+      .normalize("NFKC")
+      // Replace various problematic quote characters with standard ones
+      .replace(/[\u2018\u2019]/g, "'") // Smart single quotes
+      .replace(/[\u201C\u201D]/g, '"') // Smart double quotes
+      .replace(/[\u2013\u2014]/g, "-") // En dash, Em dash
+      .replace(/\u2026/g, "...") // Ellipsis
+      // Replace various whitespace characters with standard space
+      .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, " ")
+      // Replace zero-width characters
+      .replace(/[\u200B\u200C\u200D\uFEFF]/g, "")
+      // Replace other problematic characters
+      .replace(/[\u00AD]/g, "") // Soft hyphen
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "") // Control characters
+      // Trim and collapse multiple spaces
+      .replace(/\s+/g, " ")
+      .trim()
+  )
+}
 
 chrome.tabs.onUpdated.addListener(
   async function listener(tabId, changeInfo, tab) {
     if (changeInfo.status === "complete") {
-      startHub();
-      const storage = new Storage();
+      startHub()
+      const storage = new Storage()
 
-      const domain = "https://unearthed.app";
+      const domain = "https://unearthed.app"
 
-      const gotDate = await storage.get("gotDate");
-      const storedKindleURL = await storage.get("kindleURL");
-      const kindleURL = storedKindleURL || "read.amazon.com";
+      const gotDate = await storage.get("gotDate")
+      const storedKindleURL = await storage.get("kindleURL")
+      const kindleURL = storedKindleURL || "read.amazon.com"
 
-      const storedAutoSync = await storage.get("autoSync");
-      const autoSync = storedAutoSync;
+      const storedAutoSync = await storage.get("autoSync")
+      const autoSync = storedAutoSync
 
-      const storedApiKey = await storage.get("API_KEY");
-      const API_KEY = storedApiKey;
-      const storedSecret = await storage.get("secret");
-      let secret = storedSecret;
-      let allBooks = [];
+      const storedApiKey = await storage.get("API_KEY")
+      const API_KEY = storedApiKey
+      const storedSecret = await storage.get("secret")
+      let secret = storedSecret
+      let allBooks = []
 
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Date().toISOString().split("T")[0]
 
       if (gotDate == today || !API_KEY) {
-        return;
+        return
       }
-      storage.set("gotDate", today);
+      storage.set("gotDate", today)
 
       const bookUploadProcess = async (booksPassedIn) => {
-        let updatedBooks = [];
+        let updatedBooks = []
         const booksToInsert = booksPassedIn.map((book) => ({
           title: book.title,
           subtitle: book.subtitle,
           author: book.author,
           imageUrl: book.imageUrl,
           asin: book.asin
-        }));
-        let errorOccured = false;
+        }))
+        let errorOccured = false
 
         try {
           const response = await fetch(`${domain}/api/public/books-insert`, {
             method: "POST",
             headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${API_KEY}~~~${secret}`
+              "Content-Type": "application/json; charset=utf-8",
+              Authorization: `Bearer ${API_KEY}~~~${secret}`,
+              Accept: "application/json"
             },
             body: JSON.stringify(booksToInsert)
-          });
+          })
 
           if (!response.ok) {
-            throw new Error("Error inserting");
+            throw new Error("Error inserting")
           }
-          const data = await response.json();
+          const data = await response.json()
 
           const updatedBooksFromInserted = booksPassedIn
             .map((book) => {
               const matchingRecord = data.insertedRecords.find(
                 (record) => record.title === book.title
-              );
+              )
               if (matchingRecord) {
-                return { ...book, id: matchingRecord.id };
+                return { ...book, id: matchingRecord.id }
               }
-              return null;
+              return null
             })
-            .filter((book) => book !== null);
+            .filter((book) => book !== null)
 
           const updatedBooksFromExisting = booksPassedIn
             .map((book) => {
               const matchingRecord = data.existingRecords.find(
                 (record) => record.title === book.title
-              );
+              )
               if (matchingRecord) {
-                return { ...book, id: matchingRecord.id };
+                return { ...book, id: matchingRecord.id }
               }
-              return null;
+              return null
             })
-            .filter((book) => book !== null);
+            .filter((book) => book !== null)
 
           updatedBooks = [
             ...updatedBooksFromInserted,
             ...updatedBooksFromExisting
-          ];
+          ]
         } catch (error) {
-          errorOccured = true;
-          console.error(error);
+          errorOccured = true
+          console.error(error)
         }
 
         const quotesToInsertArray = updatedBooks
           .map((book) =>
             book?.annotations?.map((annotation) => ({
               sourceId: book.id,
-              content: annotation.quote,
-              note: annotation.note,
-              color: annotation.color,
-              location: annotation.location
+              content: sanitizeText(annotation.quote),
+              note: sanitizeText(annotation.note),
+              color: sanitizeText(annotation.color),
+              location: sanitizeText(annotation.location)
             }))
           )
-          .filter((x) => x !== undefined);
+          .filter((x) => x !== undefined)
 
-        const failedIndexes = [];
+        const failedIndexes = []
 
         for (let i = 0; i < quotesToInsertArray.length; i++) {
           try {
             const response = await fetch(`${domain}/api/public/quotes-insert`, {
               method: "POST",
               headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${API_KEY}~~~${secret}`
+                "Content-Type": "application/json; charset=utf-8",
+                Authorization: `Bearer ${API_KEY}~~~${secret}`,
+                Accept: "application/json"
               },
               body: JSON.stringify(quotesToInsertArray[i])
             })
 
             if (!response.ok) {
-              throw new Error(`Error inserting quote at index ${i}`);
+              throw new Error(`Error inserting quote at index ${i}`)
             }
-            await response.json();
+
+            try {
+              await response.json()
+            } catch (jsonError) {
+              console.error(
+                `JSON parsing error for quote at index ${i}:`,
+                jsonError
+              )
+              throw new Error(`JSON parsing error for quote at index ${i}`)
+            }
           } catch (error) {
             errorOccured = true
             console.error(`Failed to insert quote at index ${i}:`, error)
@@ -194,16 +231,17 @@ chrome.tabs.onUpdated.addListener(
 
         const annotations = []
         for (let i = 0; i < length; i++) {
-          const quoteText = getText(quotes[i]).trim()
-          const noteText = getText(notes[i]).trim()
-          const colorAndLocationText = getText(colorsAndLocations[i]).trim()
-          const [color = "", location = ""] = colorAndLocationText.split(" | ")
+          const rawQuoteText = getText(quotes[i]).trim()
+          const rawNoteText = getText(notes[i]).trim()
+          const rawColorAndLocationText = getText(colorsAndLocations[i]).trim()
+          const [rawColor = "", rawLocation = ""] =
+            rawColorAndLocationText.split(" | ")
 
           annotations.push({
-            quote: quoteText,
-            note: noteText,
-            color: color.trim(),
-            location: location.trim()
+            quote: sanitizeText(rawQuoteText),
+            note: sanitizeText(rawNoteText),
+            color: sanitizeText(rawColor.trim()),
+            location: sanitizeText(rawLocation.trim())
           })
         }
 
@@ -215,7 +253,7 @@ chrome.tabs.onUpdated.addListener(
       }
 
       const getEachBook = async (booksToProcess, maxRetries = 1) => {
-        const retryDelays = [1000, 2000, 4000, 8000, 16000];
+        const retryDelays = [1000, 2000, 4000, 8000, 16000]
 
         for (let book of booksToProcess) {
           let retries = 0
@@ -228,7 +266,7 @@ chrome.tabs.onUpdated.addListener(
             const timeoutId = setTimeout(() => controller.abort(), 10000)
 
             try {
-              let urlToFetch;
+              let urlToFetch
               if (!continuationToken) {
                 urlToFetch = `https://${kindleURL}/notebook?asin=${book.htmlId}&contentLimitState=&`
               } else {
@@ -260,9 +298,11 @@ chrome.tabs.onUpdated.addListener(
               if (response.status === 429) {
                 const retryAfter =
                   response.headers.get("Retry-After") ||
-                  Math.min(30, retryDelays[retries] + Math.random() * 1000);
+                  Math.min(30, retryDelays[retries] + Math.random() * 1000)
                 console.log(`Rate limited. Waiting ${Number(retryAfter)}ms`)
-                await new Promise((resolve) => setTimeout(resolve, Number(retryAfter)));
+                await new Promise((resolve) =>
+                  setTimeout(resolve, Number(retryAfter))
+                )
                 continue
               }
 
@@ -302,17 +342,19 @@ chrome.tabs.onUpdated.addListener(
                 error.message
               )
               if (++retries < maxRetries) {
-                const delay = retryDelays[retries - 1] + Math.random() * 1000;
-                console.log(`Waiting ${Math.round(delay)}ms before retry...`);
-                await new Promise((resolve) => setTimeout(resolve, Number(delay)));
+                const delay = retryDelays[retries - 1] + Math.random() * 1000
+                console.log(`Waiting ${Math.round(delay)}ms before retry...`)
+                await new Promise((resolve) =>
+                  setTimeout(resolve, Number(delay))
+                )
               }
-             } finally {
-              clearTimeout(timeoutId);
+            } finally {
+              clearTimeout(timeoutId)
               if (retries >= maxRetries && !success) {
-                continuationToken = null;
-                contentLimitState = null;
+                continuationToken = null
+                contentLimitState = null
               }
-             }
+            }
 
             if (continuationToken) {
               retries = 0
@@ -382,17 +424,19 @@ chrome.tabs.onUpdated.addListener(
         }
         allBooks = []
         itemsList.forEach((book, index) => {
-          const bookTitle = book.title?.trim() || "Untitled"
-          const bookAuthor =
+          const rawBookTitle = book.title?.trim() || "Untitled"
+          const bookTitle = sanitizeText(rawBookTitle)
+          const rawBookAuthor =
             book.authors && book.authors[0]
               ? formatAuthorName(book.authors[0])
               : "Unknown"
+          const bookAuthor = sanitizeText(rawBookAuthor)
           const titleParts = bookTitle.split(": ")
 
           allBooks.push({
             htmlId: book.asin,
-            title: titleParts[0],
-            subtitle: titleParts[1] || "",
+            title: sanitizeText(titleParts[0]),
+            subtitle: sanitizeText(titleParts[1] || ""),
             author: bookAuthor,
             imageUrl: book.productUrl,
             asin: book.asin
@@ -408,7 +452,7 @@ chrome.tabs.onUpdated.addListener(
       ) => {
         let urlToFetch = `https://${kindleURL}/kindle-library/search?libraryType=BOOKS&sortType=recency&querySize=50`
         if (paginationToken) {
-          urlToFetch += `&paginationToken=${paginationToken}`;
+          urlToFetch += `&paginationToken=${paginationToken}`
         }
 
         try {
@@ -476,8 +520,9 @@ chrome.tabs.onUpdated.addListener(
       if (!secret) {
         const connectResults = await fetch(`${domain}/api/public/connect`, {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${API_KEY}`
+            "Content-Type": "application/json; charset=utf-8",
+            Authorization: `Bearer ${API_KEY}`,
+            Accept: "application/json"
           }
         })
 
