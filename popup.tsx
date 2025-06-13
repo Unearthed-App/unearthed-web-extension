@@ -15,6 +15,32 @@ import "./style.css";
 
 
 
+// Utility function to sanitize text and handle problematic characters
+const sanitizeText = (text: string): string => {
+  if (!text || typeof text !== "string") return ""
+
+  return (
+    text
+      // Normalize unicode characters
+      .normalize("NFKC")
+      // Replace various problematic quote characters with standard ones
+      .replace(/[\u2018\u2019]/g, "'") // Smart single quotes
+      .replace(/[\u201C\u201D]/g, '"') // Smart double quotes
+      .replace(/[\u2013\u2014]/g, "-") // En dash, Em dash
+      .replace(/\u2026/g, "...") // Ellipsis
+      // Replace various whitespace characters with standard space
+      .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, " ")
+      // Replace zero-width characters
+      .replace(/[\u200B\u200C\u200D\uFEFF]/g, "")
+      // Replace other problematic characters
+      .replace(/[\u00AD]/g, "") // Soft hyphen
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "") // Control characters
+      // Trim and collapse multiple spaces
+      .replace(/\s+/g, " ")
+      .trim()
+  )
+}
+
 // import { sendToBackground } from "@plasmohq/messaging";
 
 const domain = "https://unearthed.app"
@@ -151,17 +177,19 @@ function IndexPopup() {
       }
       let newAllBooks = []
       itemsList.forEach((book, index) => {
-        const bookTitle = book.title?.trim() || "Untitled"
-        const bookAuthor =
+        const rawBookTitle = book.title?.trim() || "Untitled"
+        const bookTitle = sanitizeText(rawBookTitle)
+        const rawBookAuthor =
           book.authors && book.authors[0]
             ? formatAuthorName(book.authors[0])
             : "Unknown"
+        const bookAuthor = sanitizeText(rawBookAuthor)
         const titleParts = bookTitle.split(": ")
 
         newAllBooks.push({
           htmlId: book.asin,
-          title: titleParts[0],
-          subtitle: titleParts[1] || "",
+          title: sanitizeText(titleParts[0]),
+          subtitle: sanitizeText(titleParts[1] || ""),
           author: bookAuthor,
           imageUrl: book.productUrl,
           asin: book.asin
@@ -209,8 +237,9 @@ function IndexPopup() {
       if (!secret) {
         const connectResults = await fetch(`${domain}/api/public/connect`, {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${API_KEY}`
+            "Content-Type": "application/json; charset=utf-8",
+            Authorization: `Bearer ${API_KEY}`,
+            Accept: "application/json"
           }
         })
 
@@ -223,8 +252,9 @@ function IndexPopup() {
 
       const response = await fetch(`${domain}/api/public/daily-reflection`, {
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${API_KEY}~~~${secret ? secret : newSecret}`
+          "Content-Type": "application/json; charset=utf-8",
+          Authorization: `Bearer ${API_KEY}~~~${secret ? secret : newSecret}`,
+          Accept: "application/json"
         }
       })
 
@@ -307,7 +337,11 @@ function IndexPopup() {
     return csv
       .map((row) =>
         row
-          .map((cell) => `"${String(cell || "").replace(/"/g, '""')}"`)
+          .map((cell) => {
+            const sanitizedCell = sanitizeText(String(cell || ""))
+            // Escape double quotes and wrap in quotes for CSV
+            return `"${sanitizedCell.replace(/"/g, '""')}"`
+          })
           .join(",")
       )
       .join("\n")
@@ -320,7 +354,6 @@ function IndexPopup() {
       paginationToken = null,
       accumulatedItems = []
     ) => {
-
       let urlToFetch = `https://${kindleURL}/kindle-library/search?libraryType=BOOKS&sortType=recency&querySize=50`
       if (paginationToken) {
         urlToFetch += `&paginationToken=${paginationToken}`
@@ -346,6 +379,7 @@ function IndexPopup() {
           const res = await response.json()
           const itemsList = res.itemsList || []
           accumulatedItems.push(...itemsList)
+          console.log("response", response)
 
           if (res.paginationToken) {
             return await fetchData(
@@ -355,6 +389,8 @@ function IndexPopup() {
               accumulatedItems
             )
           }
+
+          console.log("accumulatedItems", accumulatedItems)
 
           await parseBooks(accumulatedItems)
         } else {
@@ -407,8 +443,9 @@ function IndexPopup() {
         const response = await fetch(`${domain}/api/public/books-insert`, {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${API_KEY}~~~${secret}`
+            "Content-Type": "application/json; charset=utf-8",
+            Authorization: `Bearer ${API_KEY}~~~${secret}`,
+            Accept: "application/json"
           },
           body: JSON.stringify(booksToInsert)
         })
@@ -455,10 +492,10 @@ function IndexPopup() {
         .map((book) =>
           book?.annotations?.map((annotation) => ({
             sourceId: book.id,
-            content: annotation.quote,
-            note: annotation.note,
-            color: annotation.color,
-            location: annotation.location
+            content: sanitizeText(annotation.quote),
+            note: sanitizeText(annotation.note),
+            color: sanitizeText(annotation.color),
+            location: sanitizeText(annotation.location)
           }))
         )
         .filter((x) => x !== undefined)
@@ -470,8 +507,9 @@ function IndexPopup() {
           const response = await fetch(`${domain}/api/public/quotes-insert`, {
             method: "POST",
             headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${API_KEY}~~~${secret}`
+              "Content-Type": "application/json; charset=utf-8",
+              Authorization: `Bearer ${API_KEY}~~~${secret}`,
+              Accept: "application/json"
             },
             body: JSON.stringify(quotesToInsertArray[i])
           })
@@ -479,7 +517,16 @@ function IndexPopup() {
           if (!response.ok) {
             throw new Error(`Error inserting quote at index ${i}`)
           }
-          await response.json()
+
+          try {
+            await response.json()
+          } catch (jsonError) {
+            console.error(
+              `JSON parsing error for quote at index ${i}:`,
+              jsonError
+            )
+            throw new Error(`JSON parsing error for quote at index ${i}`)
+          }
         } catch (error) {
           errorOccured = true
           console.error(`Failed to insert quote at index ${i}:`, error)
@@ -526,13 +573,18 @@ function IndexPopup() {
         )
 
         for (let i = 0; i < length; i++) {
+          const rawQuote = quotes[i].textContent?.trim() || ""
+          const rawNote = note[i].textContent?.trim() || ""
+          const rawColorAndLocation =
+            colorsAndLocations[i].textContent?.trim() || ""
+          const [rawColor = "", rawLocation = ""] =
+            rawColorAndLocation.split(" | ")
+
           annotations.push({
-            quote: quotes[i].textContent?.trim() || "",
-            note: note[i].textContent?.trim() || "",
-            color:
-              colorsAndLocations[i].textContent?.trim().split(" | ")[0] || "",
-            location:
-              colorsAndLocations[i].textContent?.trim().split(" | ")[1] || ""
+            quote: sanitizeText(rawQuote),
+            note: sanitizeText(rawNote),
+            color: sanitizeText(rawColor),
+            location: sanitizeText(rawLocation)
           })
         }
 
@@ -616,9 +668,7 @@ function IndexPopup() {
 
             const html = await response.text()
 
-            const result: ParseSingleBookResult = await parseSingleBook(
-              html
-            )
+            const result: ParseSingleBookResult = await parseSingleBook(html)
 
             if (result) {
               continuationToken = result.continuationToken
@@ -709,7 +759,8 @@ function IndexPopup() {
         } uploaded`
       }
       succeededBooks.forEach((book) => {
-        finishedHtml += `\nUploaded: ${book.title}`
+        const quoteCount = book.annotations?.length || 0
+        finishedHtml += `\n${book.title} (${quoteCount} quote${quoteCount !== 1 ? "s" : ""})`
       })
 
       setSyncing(false)
@@ -771,7 +822,9 @@ function IndexPopup() {
       return checkedBookTitles.includes(book.title)
     })
     const csv = convertBooksToCSV(booksForCsv)
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    // Add BOM for proper UTF-8 encoding in Excel and other applications
+    const BOM = "\uFEFF"
+    const blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
