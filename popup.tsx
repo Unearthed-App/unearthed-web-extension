@@ -94,6 +94,7 @@ function IndexPopup() {
   const [canConnect, setCanConnect] = useState(false)
 
   const [API_KEY, setAPI_KEY] = useState("")
+  const [USER_ID, setUSER_ID] = useState("")
   const [autoSync, setAutoSync] = useState(false)
   const [kindleURL, setKindleURL] = useState("read.amazon.com")
   const [loadingDailyReflectionVisible, setLoadingDailyReflectionVisible] =
@@ -106,7 +107,7 @@ function IndexPopup() {
     useState("Getting books...")
   const [allBooks, setAllBooks] = useState([])
   const [checkedBookTitles, setCheckedBookTitles] = useState([])
-  const [secret, setSecret] = useState("")
+  // const [secret, setSecret] = useState("")
 
   useEffect(() => {
     const loadApiKey = async () => {
@@ -116,6 +117,17 @@ function IndexPopup() {
       }
     }
     loadApiKey()
+  }, [])
+
+
+  useEffect(() => {
+    const loadUserId = async () => {
+      const storedUserId = await storage.get("USER_ID")
+      if (storedUserId) {
+        setUSER_ID(storedUserId)
+      }
+    }
+    loadUserId()
   }, [])
 
   useEffect(() => {
@@ -138,23 +150,14 @@ function IndexPopup() {
     loadKindleURL()
   }, [])
 
-  useEffect(() => {
-    const loadApiKey = async () => {
-      const storedSecret = await storage.get("secret")
-      if (storedSecret) {
-        setSecret(storedSecret)
-      }
-    }
-    loadApiKey()
-  }, [])
 
   useEffect(() => {
-    if (API_KEY) {
+    if (API_KEY && USER_ID) {
       getDailyReflection()
     } else {
       setLoadingDailyReflectionVisible(false)
     }
-  }, [API_KEY])
+  }, [API_KEY, USER_ID])
 
   const formatAuthorName = useCallback((author) => {
     if (author.endsWith(":")) {
@@ -230,33 +233,16 @@ function IndexPopup() {
     let data = {}
 
     try {
-      let newSecret = ""
-
-      // first see if they're logged in in the browser
-
-      if (!secret) {
-        const connectResults = await fetch(`${domain}/api/public/connect`, {
+      const response = await fetch(
+        `${domain}/api/public/obs-daily-reflection`,
+        {
           headers: {
             "Content-Type": "application/json; charset=utf-8",
-            Authorization: `Bearer ${API_KEY}`,
+            Authorization: `Bearer ${API_KEY}~~~${USER_ID}`,
             Accept: "application/json"
           }
-        })
-
-        const connectData = await connectResults.json()
-
-        newSecret = connectData.data.secret
-        setSecret(connectData.data.secret)
-        storage.set("secret", connectData.data.secret)
-      }
-
-      const response = await fetch(`${domain}/api/public/daily-reflection`, {
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-          Authorization: `Bearer ${API_KEY}~~~${secret ? secret : newSecret}`,
-          Accept: "application/json"
         }
-      })
+      )
 
       if (response.ok) {
         const responseData = await response.json()
@@ -440,11 +426,11 @@ function IndexPopup() {
       let errorOccured = false
 
       try {
-        const response = await fetch(`${domain}/api/public/books-insert`, {
+        const response = await fetch(`${domain}/api/public/ext-books-insert`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json; charset=utf-8",
-            Authorization: `Bearer ${API_KEY}~~~${secret}`,
+            Authorization: `Bearer ${API_KEY}~~~${USER_ID}`,
             Accept: "application/json"
           },
           body: JSON.stringify(booksToInsert)
@@ -504,15 +490,18 @@ function IndexPopup() {
 
       for (let i = 0; i < quotesToInsertArray.length; i++) {
         try {
-          const response = await fetch(`${domain}/api/public/quotes-insert`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json; charset=utf-8",
-              Authorization: `Bearer ${API_KEY}~~~${secret}`,
-              Accept: "application/json"
-            },
-            body: JSON.stringify(quotesToInsertArray[i])
-          })
+          const response = await fetch(
+            `${domain}/api/public/ext-quotes-insert`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json; charset=utf-8",
+                Authorization: `Bearer ${API_KEY}~~~${USER_ID}`,
+                Accept: "application/json"
+              },
+              body: JSON.stringify(quotesToInsertArray[i])
+            }
+          )
 
           if (!response.ok) {
             throw new Error(`Error inserting quote at index ${i}`)
@@ -535,7 +524,7 @@ function IndexPopup() {
       }
       return !errorOccured
     },
-    [API_KEY]
+    [API_KEY, USER_ID]
   )
 
   const parseSingleBook = useCallback(
@@ -848,9 +837,12 @@ function IndexPopup() {
     const newApiKey = e.target.value
     setAPI_KEY(newApiKey)
     storage.set("API_KEY", newApiKey)
+  }
 
-    setSecret("")
-    storage.set("secret", "")
+  const handleUserIdInputChange = (e) => {
+    const newUserId = e.target.value
+    setUSER_ID(newUserId)
+    storage.set("USER_ID", newUserId)
   }
 
   const handleAutoSyncChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -891,18 +883,23 @@ function IndexPopup() {
             Please put in your Unearthed API Key under Settings.
           </h3>
         )}
+        {!USER_ID && (
+          <h3 className="text-center">
+            Please put in your Unearthed User ID under Settings.
+          </h3>
+        )}
         {!dailyReflection?.source &&
           !loadingDailyReflectionVisible &&
           !canConnect &&
-          API_KEY && (
+          API_KEY && USER_ID && (
             <h3 className="text-center">
-              Check that your Unearthed API key is correct under Settings
+              Check that your Settings are correct
             </h3>
           )}
         {!dailyReflection?.source &&
           !loadingDailyReflectionVisible &&
           canConnect &&
-          API_KEY && (
+          API_KEY && USER_ID && (
             <h3 className="text-center">
               No Daily Reflection found, you may need to sync some books first.
             </h3>
@@ -966,7 +963,7 @@ function IndexPopup() {
                     }}>
                     <p className="ml-2 text-sm text-muted-foreground pt-2">
                       <span className="text-base font-bold text-[hsl(175,60%,20%)]">
-                        Notes:
+                        Notes:{' '}
                       </span>
                       <span>{dailyReflection.quote?.note}</span>
                     </p>
@@ -1133,6 +1130,26 @@ function IndexPopup() {
                   placeholder="Enter your API Key"
                   value={API_KEY}
                   onChange={handleApiKeyInputChange}
+                />
+              </div>
+              <div className="mb-2">
+                <label
+                  htmlFor="userId"
+                  className="block text-sm font-medium text-gray-700">
+                  User ID
+                </label>
+                <label
+                  htmlFor="userId"
+                  className="block text-xs font-light text-gray-700">
+                  Copy it from the settings on unearthed.app
+                </label>
+                <input
+                  type="text"
+                  id="userId" // Added id to match htmlFor for accessibility
+                  className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2"
+                  placeholder="Enter your User ID"
+                  value={USER_ID}
+                  onChange={handleUserIdInputChange}
                 />
               </div>
               <div className="mb-2">
