@@ -1,7 +1,7 @@
 {
   "name": "unearthed-web-extension",
   "displayName": "Unearthed App",
-  "version": "1.5.2",
+  "version": "1.5.6",
   "description": "Sync your Kindle quotes and notes",
   "author": "Unearthed.app",
   "scripts": {

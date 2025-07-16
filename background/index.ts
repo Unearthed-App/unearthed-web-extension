@@ -59,13 +59,13 @@ chrome.tabs.onUpdated.addListener(
 
       const storedApiKey = await storage.get("API_KEY")
       const API_KEY = storedApiKey
-      const storedSecret = await storage.get("secret")
-      let secret = storedSecret
+      const storedUserId = await storage.get("USER_ID")
+      const USER_ID = storedUserId
       let allBooks = []
 
       const today = new Date().toISOString().split("T")[0]
 
-      if (gotDate == today || !API_KEY) {
+      if (gotDate == today || !API_KEY || !USER_ID) {
         return
       }
       storage.set("gotDate", today)
@@ -82,15 +82,18 @@ chrome.tabs.onUpdated.addListener(
         let errorOccured = false
 
         try {
-          const response = await fetch(`${domain}/api/public/books-insert`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json; charset=utf-8",
-              Authorization: `Bearer ${API_KEY}~~~${secret}`,
-              Accept: "application/json"
-            },
-            body: JSON.stringify(booksToInsert)
-          })
+          const response = await fetch(
+            `${domain}/api/public/ext-books-insert`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json; charset=utf-8",
+                Authorization: `Bearer ${API_KEY}~~~${USER_ID}`,
+                Accept: "application/json"
+              },
+              body: JSON.stringify(booksToInsert)
+            }
+          )
 
           if (!response.ok) {
             throw new Error("Error inserting")
@@ -146,15 +149,18 @@ chrome.tabs.onUpdated.addListener(
 
         for (let i = 0; i < quotesToInsertArray.length; i++) {
           try {
-            const response = await fetch(`${domain}/api/public/quotes-insert`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json; charset=utf-8",
-                Authorization: `Bearer ${API_KEY}~~~${secret}`,
-                Accept: "application/json"
-              },
-              body: JSON.stringify(quotesToInsertArray[i])
-            })
+            const response = await fetch(
+              `${domain}/api/public/ext-quotes-insert`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json; charset=utf-8",
+                  Authorization: `Bearer ${API_KEY}~~~${USER_ID}`,
+                  Accept: "application/json"
+                },
+                body: JSON.stringify(quotesToInsertArray[i])
+              }
+            )
 
             if (!response.ok) {
               throw new Error(`Error inserting quote at index ${i}`)
@@ -517,22 +523,7 @@ chrome.tabs.onUpdated.addListener(
         }
       }
 
-      if (!secret) {
-        const connectResults = await fetch(`${domain}/api/public/connect`, {
-          headers: {
-            "Content-Type": "application/json; charset=utf-8",
-            Authorization: `Bearer ${API_KEY}`,
-            Accept: "application/json"
-          }
-        })
-
-        const connectData = await connectResults.json()
-
-        secret = connectData.data.secret
-        storage.set("secret", connectData.data.secret)
-      }
-
-      if (API_KEY && secret) {
+      if (API_KEY && USER_ID) {
         await fetchData()
 
         if (allBooks.length > 0) {
