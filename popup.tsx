@@ -6,6 +6,10 @@ import { Storage } from "@plasmohq/storage";
 
 
 
+import { clearUnearthedAuthState, handleUnearthedAuthFailure, UNEARTHED_AUTH_ERROR } from "~lib/unearthed-auth";
+
+
+
 
 
 
@@ -107,7 +111,7 @@ function IndexPopup() {
     useState("Getting books...")
   const [allBooks, setAllBooks] = useState([])
   const [checkedBookTitles, setCheckedBookTitles] = useState([])
-  // const [secret, setSecret] = useState("")
+  const [authErrorVisible, setAuthErrorVisible] = useState(false)
 
   useEffect(() => {
     const loadApiKey = async () => {
@@ -117,6 +121,14 @@ function IndexPopup() {
       }
     }
     loadApiKey()
+  }, [])
+
+  useEffect(() => {
+    const loadAuthFlags = async () => {
+      const err = await storage.get("authError")
+      setAuthErrorVisible(!!err)
+    }
+    loadAuthFlags()
   }, [])
 
 
@@ -436,6 +448,11 @@ function IndexPopup() {
           body: JSON.stringify(booksToInsert)
         })
 
+        if (response.status === 401 || response.status === 403) {
+          await handleUnearthedAuthFailure(storage)
+          setAuthErrorVisible(true)
+          throw new Error(UNEARTHED_AUTH_ERROR)
+        }
         if (!response.ok) {
           throw new Error("Error inserting")
         }
@@ -470,6 +487,9 @@ function IndexPopup() {
           ...updatedBooksFromExisting
         ]
       } catch (error) {
+        if (error.message === UNEARTHED_AUTH_ERROR) {
+          throw error
+        }
         errorOccured = true
         console.error(error)
       }
@@ -503,6 +523,11 @@ function IndexPopup() {
             }
           )
 
+          if (response.status === 401 || response.status === 403) {
+            await handleUnearthedAuthFailure(storage)
+            setAuthErrorVisible(true)
+            throw new Error(UNEARTHED_AUTH_ERROR)
+          }
           if (!response.ok) {
             throw new Error(`Error inserting quote at index ${i}`)
           }
@@ -517,6 +542,9 @@ function IndexPopup() {
             throw new Error(`JSON parsing error for quote at index ${i}`)
           }
         } catch (error) {
+          if (error.message === UNEARTHED_AUTH_ERROR) {
+            throw error
+          }
           errorOccured = true
           console.error(`Failed to insert quote at index ${i}:`, error)
           failedIndexes.push(i)
@@ -524,7 +552,7 @@ function IndexPopup() {
       }
       return !errorOccured
     },
-    [API_KEY, USER_ID]
+    [API_KEY, USER_ID, storage]
   )
 
   const parseSingleBook = useCallback(
@@ -601,8 +629,12 @@ function IndexPopup() {
   const getEachBook = useCallback(
     async (booksToProcess, maxRetries = 5) => {
       const retryDelays = [1000, 2000, 4000, 8000, 16000]
+      let authAborted = false
 
       for (let book of booksToProcess) {
+        if (authAborted) {
+          break
+        }
         let retries = 0
         let success = false
         let continuationToken = null
@@ -669,32 +701,54 @@ function IndexPopup() {
               }
 
               if (!continuationToken) {
-                const uploadSuccess = await uploadSingleBook(book)
-                book.uploaded = uploadSuccess
-                if (uploadSuccess) {
-                  const booksUploaded = [book]
+                try {
+                  const uploadSuccess = await uploadSingleBook(book)
+                  book.uploaded = uploadSuccess
+                  if (uploadSuccess) {
+                    const booksUploaded = [book]
 
-                  let currentText = ""
-                  booksUploaded.forEach((book) => {
-                    currentText += `Uploaded "${book.title}"`
-                  })
-                  setGetBooksInformationText(currentText)
+                    let currentText = ""
+                    booksUploaded.forEach((book) => {
+                      currentText += `Uploaded "${book.title}"`
+                    })
+                    setGetBooksInformationText(currentText)
 
-                  success = true
+                    success = true
+                  } else {
+                    retries = maxRetries
+                  }
+                } catch (uploadErr) {
+                  if (uploadErr.message === UNEARTHED_AUTH_ERROR) {
+                    authAborted = true
+                    book.uploaded = false
+                    retries = maxRetries
+                    setAuthErrorVisible(true)
+                  } else {
+                    throw uploadErr
+                  }
                 }
               } else {
                 retries = -1
               }
             }
           } catch (error) {
-            console.error(
-              `Attempt ${retries + 1} failed for ${book.htmlId}:`,
-              error.message
-            )
-            if (++retries < maxRetries) {
-              const delay = retryDelays[retries - 1] + Math.random() * 1000
-              console.log(`Waiting ${Math.round(delay)}ms before retry...`)
-              await new Promise((resolve) => setTimeout(resolve, Number(delay)))
+            if (error.message === UNEARTHED_AUTH_ERROR) {
+              authAborted = true
+              book.uploaded = false
+              retries = maxRetries
+              setAuthErrorVisible(true)
+            } else {
+              console.error(
+                `Attempt ${retries + 1} failed for ${book.htmlId}:`,
+                error.message
+              )
+              if (++retries < maxRetries) {
+                const delay = retryDelays[retries - 1] + Math.random() * 1000
+                console.log(`Waiting ${Math.round(delay)}ms before retry...`)
+                await new Promise((resolve) =>
+                  setTimeout(resolve, Number(delay))
+                )
+              }
             }
           } finally {
             clearTimeout(timeoutId)
@@ -716,6 +770,15 @@ function IndexPopup() {
             `Failed to process book ${book.htmlId} after ${maxRetries} attempts`
           )
         }
+      }
+
+      if (authAborted) {
+        setSyncing(false)
+        setFinishedSyncing(true)
+        setGetBooksInformationText(
+          "Sync paused: Unearthed rejected your credentials (401). Update your API Key and User ID in Settings on unearthed.app, then tap Resume sync below."
+        )
+        return
       }
 
       let finishedHtml = "Done"
@@ -757,9 +820,9 @@ function IndexPopup() {
       setGetBooksInformationText(finishedHtml)
     },
     [
-      allBooks,
+      kindleURL,
+      parseSingleBook,
       bookUploadProcess,
-      getBooksInformationText,
       setGetBooksInformationText
     ]
   )
@@ -858,6 +921,12 @@ function IndexPopup() {
     storage.set("kindleURL", newKindleURL)
   }
 
+  const handleResumeSyncClick = async () => {
+    await clearUnearthedAuthState(storage)
+    setAuthErrorVisible(false)
+    setSettingsScreenVisible(true)
+  }
+
   return (
     <div className="p-2 bg-[hsl(10,100%,93%)] w-[450px]">
       <link
@@ -875,6 +944,21 @@ function IndexPopup() {
         `}
       </style>
       <div className="container bg-[hsl(10,100%,93%)]">
+        {authErrorVisible && (
+          <div className="mt-2 mb-2 p-3 border-2 border-red-600 rounded-lg bg-red-50 text-left">
+            <p className="text-xs text-red-900 font-semibold mb-2">
+              Unearthed rejected your API credentials (401). Automatic sync is
+              paused. Update your API Key and User ID in Settings on
+              unearthed.app, then tap Resume sync.
+            </p>
+            <button
+              className="bg-white inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border-2 p-2.5 rounded-md transition-shadow duration-200 border-red-600 shadow-[4px_4px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] active:shadow-[1px_1px_0px_rgba(0,0,0,1)] h-10 px-4 py-2 w-full"
+              type="button"
+              onClick={handleResumeSyncClick}>
+              Resume sync
+            </button>
+          </div>
+        )}
         {loadingDailyReflectionVisible && (
           <h3 className="text-center">Loading...</h3>
         )}

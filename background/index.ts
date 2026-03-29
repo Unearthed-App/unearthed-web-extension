@@ -10,6 +10,10 @@ import { Storage } from "@plasmohq/storage";
 
 
 
+import { handleUnearthedAuthFailure, UNEARTHED_AUTH_ERROR } from "~lib/unearthed-auth";
+
+
+
 
 
 const parse5 = require("parse5")
@@ -51,6 +55,7 @@ chrome.tabs.onUpdated.addListener(
       const domain = "https://unearthed.app"
 
       const gotDate = await storage.get("gotDate")
+      const syncPaused = await storage.get("syncPaused")
       const storedKindleURL = await storage.get("kindleURL")
       const kindleURL = storedKindleURL || "read.amazon.com"
 
@@ -65,7 +70,7 @@ chrome.tabs.onUpdated.addListener(
 
       const today = new Date().toISOString().split("T")[0]
 
-      if (gotDate == today || !API_KEY || !USER_ID) {
+      if (gotDate == today || !API_KEY || !USER_ID || syncPaused) {
         return
       }
       storage.set("gotDate", today)
@@ -95,6 +100,10 @@ chrome.tabs.onUpdated.addListener(
             }
           )
 
+          if (response.status === 401 || response.status === 403) {
+            await handleUnearthedAuthFailure(storage)
+            throw new Error(UNEARTHED_AUTH_ERROR)
+          }
           if (!response.ok) {
             throw new Error("Error inserting")
           }
@@ -129,6 +138,9 @@ chrome.tabs.onUpdated.addListener(
             ...updatedBooksFromExisting
           ]
         } catch (error) {
+          if (error.message === UNEARTHED_AUTH_ERROR) {
+            throw error
+          }
           errorOccured = true
           console.error(error)
         }
@@ -162,6 +174,10 @@ chrome.tabs.onUpdated.addListener(
               }
             )
 
+            if (response.status === 401 || response.status === 403) {
+              await handleUnearthedAuthFailure(storage)
+              throw new Error(UNEARTHED_AUTH_ERROR)
+            }
             if (!response.ok) {
               throw new Error(`Error inserting quote at index ${i}`)
             }
@@ -176,6 +192,9 @@ chrome.tabs.onUpdated.addListener(
               throw new Error(`JSON parsing error for quote at index ${i}`)
             }
           } catch (error) {
+            if (error.message === UNEARTHED_AUTH_ERROR) {
+              throw error
+            }
             errorOccured = true
             console.error(`Failed to insert quote at index ${i}:`, error)
             failedIndexes.push(i)
@@ -260,8 +279,12 @@ chrome.tabs.onUpdated.addListener(
 
       const getEachBook = async (booksToProcess, maxRetries = 1) => {
         const retryDelays = [1000, 2000, 4000, 8000, 16000]
+        let authAborted = false
 
         for (let book of booksToProcess) {
+          if (authAborted) {
+            break
+          }
           let retries = 0
           let success = false
           let continuationToken = null
@@ -332,27 +355,45 @@ chrome.tabs.onUpdated.addListener(
 
                 if (!continuationToken) {
                   console.log("Uploading:", book.htmlId)
-                  const uploadSuccess = await uploadSingleBook(book)
-                  book.uploaded = uploadSuccess
-                  if (uploadSuccess) {
-                    const booksUploaded = [book]
-                    success = true
+                  try {
+                    const uploadSuccess = await uploadSingleBook(book)
+                    book.uploaded = uploadSuccess
+                    if (uploadSuccess) {
+                      const booksUploaded = [book]
+                      success = true
+                    } else {
+                      retries = maxRetries
+                    }
+                  } catch (uploadErr) {
+                    if (uploadErr.message === UNEARTHED_AUTH_ERROR) {
+                      authAborted = true
+                      book.uploaded = false
+                      retries = maxRetries
+                    } else {
+                      throw uploadErr
+                    }
                   }
                 } else {
                   retries = -1
                 }
               }
             } catch (error) {
-              console.error(
-                `Attempt ${retries + 1} failed for ${book.htmlId}:`,
-                error.message
-              )
-              if (++retries < maxRetries) {
-                const delay = retryDelays[retries - 1] + Math.random() * 1000
-                console.log(`Waiting ${Math.round(delay)}ms before retry...`)
-                await new Promise((resolve) =>
-                  setTimeout(resolve, Number(delay))
+              if (error.message === UNEARTHED_AUTH_ERROR) {
+                authAborted = true
+                book.uploaded = false
+                retries = maxRetries
+              } else {
+                console.error(
+                  `Attempt ${retries + 1} failed for ${book.htmlId}:`,
+                  error.message
                 )
+                if (++retries < maxRetries) {
+                  const delay = retryDelays[retries - 1] + Math.random() * 1000
+                  console.log(`Waiting ${Math.round(delay)}ms before retry...`)
+                  await new Promise((resolve) =>
+                    setTimeout(resolve, Number(delay))
+                  )
+                }
               }
             } finally {
               clearTimeout(timeoutId)
