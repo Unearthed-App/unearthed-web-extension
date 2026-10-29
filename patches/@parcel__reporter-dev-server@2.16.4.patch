@@ -1,0 +1,98 @@
+diff --git a/lib/ServerReporter.js b/lib/ServerReporter.js
+index 8b989bd4ce413b22294a18ffd9c5d79c534eb4e5..5c41a76bcfc21b5cc8b4870a6ca51b448c25b49d 100644
+--- a/lib/ServerReporter.js
++++ b/lib/ServerReporter.js
+@@ -16423,11 +16423,31 @@ var $4b0641fe674d4dd2$exports = {};
+ 
+ 
+ var $95082010954b71d3$var$$parcel$__dirname = $9A2Ck$path.resolve(__dirname, "../src");
+-function $95082010954b71d3$export$1c94a12dbc96ed70(res, cors) {
++function getEntryBundlesCompat(bundleGraph) {
++    if (!bundleGraph) return [];
++    if (bundleGraph.getEntryBundles) return bundleGraph.getEntryBundles();
++    return bundleGraph.getBundles().filter((bundle)=>bundleGraph.getBundleGroupsContainingBundle(bundle)
++        .some((group)=>bundleGraph.isEntryBundleGroup(group)));
++}
++function $95082010954b71d3$export$1c94a12dbc96ed70(res, cors, req) {
+     if (cors) {
+-        res.setHeader('Access-Control-Allow-Origin', '*');
+-        res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, PUT, PATCH, POST, DELETE');
+-        res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Content-Type');
++        res.setHeader('Vary', 'Origin');
++        const origin = req?.headers.origin;
++        let allowed = false;
++        try {
++            const url = new URL(origin);
++            const extension = (url.protocol === 'chrome-extension:' || url.protocol === 'moz-extension:')
++                && !!url.hostname && !url.port && origin === `${url.protocol}//${url.host}`;
++            const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
++                && url.protocol === (req.socket.encrypted ? 'https:' : 'http:')
++                && url.host === req.headers.host && origin === url.origin;
++            allowed = extension || local;
++        } catch (_) {}
++        if (allowed) {
++            res.setHeader('Access-Control-Allow-Origin', origin);
++            res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, PUT, PATCH, POST, DELETE');
++            res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
++        }
+     }
+     res.setHeader('Cache-Control', 'max-age=0, must-revalidate');
+ }
+@@ -16686,7 +16706,7 @@ class $95082010954b71d3$export$2e2bcd8739ae039 {
+         };
+         const app = (0, (/*@__PURE__*/$parcel$interopDefault($18608d66da70ba00$exports)))();
+         app.use((req, res, next)=>{
+-            $95082010954b71d3$export$1c94a12dbc96ed70(res, this.options.cors ?? true);
++            $95082010954b71d3$export$1c94a12dbc96ed70(res, this.options.cors ?? true, req);
+             if (req.method === 'OPTIONS') {
+                 res.statusCode = 200;
+                 res.end();
+@@ -17314,7 +17334,7 @@ class $8a150e0890b72e90$export$2e2bcd8739ae039 {
+                 outputFS: this.options.outputFS,
+                 cacheDir: this.options.cacheDir,
+                 listener: (req, res)=>{
+-                    (0, $95082010954b71d3$export$1c94a12dbc96ed70)(res, this.options.cors ?? true);
++                    (0, $95082010954b71d3$export$1c94a12dbc96ed70)(res, this.options.cors ?? true, req);
+                     if (req.method === 'OPTIONS') {
+                         res.statusCode = 200;
+                         res.end();
+@@ -17504,7 +17524,7 @@ class $8a150e0890b72e90$export$2e2bcd8739ae039 {
+     getSourceURLEndpoint() {
+         let origin = '';
+         if (!this.options.devServer || // $FlowFixMe
+-        this.bundleGraph?.getEntryBundles().some((b)=>b.env.isServer())) origin = `http://${this.options.host || 'localhost'}:${this.options.port}`;
++        getEntryBundlesCompat(this.bundleGraph).some((b)=>b.env.isServer ? b.env.isServer() : b.env.isNode())) origin = `http://${this.options.host || 'localhost'}:${this.options.port}`;
+         return origin + $8a150e0890b72e90$var$HMR_ENDPOINT + '/';
+     }
+     getSourceURL(asset) {
+@@ -22641,7 +22661,7 @@ class $38d03190d96ee02b$export$fd549de9c2174bbf {
+         deferred?.resolve();
+     }
+     startWorker() {
+-        let entry = (0, (/*@__PURE__*/$parcel$interopDefault($bf27e114b43e703c$exports)))(this.bundleGraph).getEntryBundles().find((b)=>b.env.isNode() && /^\.(js|mjs|cjs)/.test((0, ($parcel$interopDefault($9A2Ck$path))).extname(b.filePath)));
++        let entry = getEntryBundlesCompat((0, (/*@__PURE__*/$parcel$interopDefault($bf27e114b43e703c$exports)))(this.bundleGraph)).find((b)=>b.env.isNode() && /^\.(js|mjs|cjs)/.test((0, ($parcel$interopDefault($9A2Ck$path))).extname(b.filePath)));
+         if (entry) {
+             let relativePath = (0, ($parcel$interopDefault($9A2Ck$path))).relative(process.cwd(), entry.filePath);
+             this.logger.log({
+@@ -22762,7 +22782,7 @@ var $5f4933a3f0f7ec92$export$2e2bcd8739ae039 = new (0, $9A2Ck$parcelplugin.Repor
+                 }
+                 break;
+             case 'buildSuccess':
+-                if (!server && !hmrServer && (serveOptions || hmrOptions)) [server, hmrServer] = await $5f4933a3f0f7ec92$var$startDevServer(options, logger, event.bundleGraph.getEntryBundles().some((b)=>b.env.isBrowser() || (0, ($parcel$interopDefault($9A2Ck$path))).extname(b.filePath) === '.html'));
++                if (!server && !hmrServer && (serveOptions || hmrOptions)) [server, hmrServer] = await $5f4933a3f0f7ec92$var$startDevServer(options, logger, getEntryBundlesCompat(event.bundleGraph).some((b)=>b.env.isBrowser() || (0, ($parcel$interopDefault($9A2Ck$path))).extname(b.filePath) === '.html'));
+                 if (serveOptions && server) server.buildSuccess(event.bundleGraph, event.requestBundle);
+                 if (hmrServer && options.serveOptions === false) {
+                     let update = await hmrServer.getUpdate(event);
+diff --git a/package.json b/package.json
+index 829d0afd58e81543413133c5ec592a35babef13f..e8c98787e6bc34f5b1d85a9575bf790edf951283 100644
+--- a/package.json
++++ b/package.json
+@@ -18,7 +18,7 @@
+   "source": "src/ServerReporter.js",
+   "engines": {
+     "node": ">= 16.0.0",
+-    "parcel": "^2.16.4"
++    "parcel": "^2.9.3"
+   },
+   "targets": {
+     "main": {

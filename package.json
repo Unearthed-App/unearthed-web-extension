@@ -1,7 +1,7 @@
 {
   "name": "unearthed-web-extension",
   "displayName": "Unearthed App",
-  "version": "1.6.1",
+  "version": "1.6.3",
   "description": "Sync your Kindle quotes and notes",
   "author": "Unearthed.app",
   "scripts": {
@@ -17,7 +17,7 @@
     "css-select": "^5.1.0",
     "parse5": "6",
     "parse5-htmlparser2-tree-adapter": "6",
-    "plasmo": "0.90.2",
+    "plasmo": "0.90.5",
     "react": "18.2.0",
     "react-dom": "18.2.0"
   },
@@ -28,10 +28,48 @@
     "@types/react": "18.2.48",
     "@types/react-dom": "18.2.18",
     "autoprefixer": "^10.4.20",
-    "postcss": "^8.5.2",
+    "postcss": "^8.5.31",
     "prettier": "3.2.4",
     "tailwindcss": "3",
     "typescript": "5.3.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "@babel/core@<7.29.6": "^7.29.6",
+      "@babel/helpers@<7.26.10": "^7.26.10",
+      "@babel/runtime@<7.26.10": "^7.26.10",
+      "@parcel/reporter-dev-server": "2.16.4",
+      "@swc/helpers": "^0.5.17",
+      "@vue/server-renderer@<3.5.42": "^3.5.42",
+      "base-x@<3.0.11": "^3.0.11",
+      "brace-expansion@2": "^2.1.7",
+      "browserslist@<4.28.7": "^4.28.7",
+      "content-security-policy-parser": "^0.6.0",
+      "esbuild": "^0.28.2",
+      "fflate@<0.8.3": "^0.8.3",
+      "glob@>=10.2.0 <10.5.0": "^10.5.0",
+      "immutable@5": "^5.1.8",
+      "js-yaml@4": "^4.3.2",
+      "minimatch@9": "^9.0.7",
+      "msgpackr@<1.10.1": "^1.10.1",
+      "nanoid@3": "^3.3.18",
+      "nanoid@>=4 <5.1.16": "^5.1.16",
+      "picomatch@2": "^2.3.2",
+      "postcss@8": "^8.5.31",
+      "postcss-selector-parser@6": "^6.1.5",
+      "sharp": "^0.35.5",
+      "source-map-js@1": "^1.2.2",
+      "svelte": "^5.57.3",
+      "svgo@2": "^2.8.4",
+      "tmp@0.2": "^0.2.6",
+      "tsup": "^8.5.0",
+      "yaml@1": "^1.10.3",
+      "yaml@2": "^2.8.3"
+    },
+    "patchedDependencies": {
+      "@plasmohq/parcel-transformer-manifest@0.21.0": "patches/@plasmohq__parcel-transformer-manifest@0.21.0.patch",
+      "@parcel/reporter-dev-server@2.16.4": "patches/@parcel__reporter-dev-server@2.16.4.patch"
+    }
   },
   "manifest": {
     "host_permissions": [
